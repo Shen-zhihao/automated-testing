@@ -17,15 +17,17 @@ export default function MainLayout() {
   return (
     <div className="mainLayout">
       <header className="topBar">
-        <NavLink className="brandBlock" to="/chat">
+        <NavLink className="brandBlock" to="/documents">
           <span className="brandTitle">Test Agent</span>
         </NavLink>
         <nav className="mainNav" aria-label="主导航">
+          <NavLink to="/documents">文档分析</NavLink>
           <NavLink to="/chat">对话工作台</NavLink>
           <NavLink to="/tasks">测试任务</NavLink>
+          <NavLink to="/settings">设置</NavLink>
         </nav>
         <div className="topBarRight">
-          <span className="prototypeBadge">本地原型</span>
+          <span className="prototypeBadge">本地工作区</span>
           <button
             className="skillMenuTrigger"
             type="button"
@@ -39,9 +41,11 @@ export default function MainLayout() {
         </div>
       </header>
       <div className="prototypeNotice" role="note">
-        当前为 UI 原型，模型与测试执行器尚未接入。对话和任务草稿仅在当前页面保留，刷新后清空。
+        {pathname === '/chat' || pathname.startsWith('/tasks')
+          ? '对话和测试任务仍为演示，刷新后清空。真实的文档读取和模型分析请使用「文档分析」。'
+          : '文档与分析结果保存在本机。导入仅提取文字，点击分析后才调用你配置的模型。'}
       </div>
-      <main className={`contentArea ${pathname.startsWith('/tasks') ? 'scrollable' : ''}`}>
+      <main className={`contentArea ${pathname !== '/chat' ? 'scrollable' : ''}`}>
         <Outlet context={outletContext} />
       </main>
       <Modal

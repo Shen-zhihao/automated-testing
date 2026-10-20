@@ -1,8 +1,14 @@
-import { app, BrowserWindow, dialog, Menu, net, protocol, session } from 'electron';
+import { app, BrowserWindow, dialog, Menu, net, protocol, session, safeStorage } from 'electron';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APP_URL, DEV_URL, isAppNavigation, resolveUiResource } from './resources.mjs';
+import { WorkspaceStore } from './store.mjs';
+import { SettingsService } from './settings.mjs';
+import { WorkspaceService } from './workspace.mjs';
+import { FeishuService } from './feishu.mjs';
+import { parseInWorker } from './documents/import.mjs';
+import { registerWorkspaceHandlers } from './ipc.mjs';
 
 const development = !app.isPackaged && process.argv.includes('--dev');
 const sourceRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -38,6 +44,7 @@ async function createWindow() {
     backgroundColor: '#f3f4f6',
     show: false,
     webPreferences: {
+      preload: path.join(sourceRoot, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -73,6 +80,41 @@ if (!['darwin', 'win32'].includes(process.platform)) {
   app
     .whenReady()
     .then(async () => {
+      const store = new WorkspaceStore(
+        path.join(app.getPath('userData'), 'storage', 'test-agent.sqlite'),
+      );
+      const notify = () => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.webContents.isDestroyed()) window.webContents.send('workspace:changed');
+        }
+      };
+      const settings = new SettingsService(store, {
+        encrypt: async (value) => {
+          if (!(await safeStorage.isAsyncEncryptionAvailable()))
+            throw new Error('系统安全存储暂不可用，凭据未保存。请解锁系统凭据存储后重试。');
+          return safeStorage.encryptStringAsync(value);
+        },
+        decrypt: async (value) => (await safeStorage.decryptStringAsync(value)).result,
+      });
+      const feishu = new FeishuService(settings, { notify });
+      const workspace = new WorkspaceService({
+        store,
+        settings,
+        feishu,
+        parseFile: parseInWorker,
+        notify,
+      });
+      registerWorkspaceHandlers(workspace, development);
+      let quitting = false;
+      app.on('before-quit', (event) => {
+        if (quitting) return;
+        event.preventDefault();
+        quitting = true;
+        workspace.cancelAll();
+        void feishu.close().finally(() => app.quit());
+      });
+      process.on('SIGINT', () => app.quit());
+      process.on('SIGTERM', () => app.quit());
       if (!development) {
         await access(path.join(uiRoot, 'index.html')).catch(() => {
           throw new Error('找不到本地 UI 构建产物，请先在 frontend 目录运行 pnpm build:agent。');

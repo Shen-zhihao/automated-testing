@@ -11,15 +11,15 @@
     "build": "pnpm build:shared && pnpm build:agent",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @project/shared-api test && pnpm --filter test-agent-desktop test",
-    "format": "prettier --write \"apps/**/*.{ts,tsx,js,mjs,jsx,json,css,less}\" \"packages/**/*.{ts,tsx,js,mjs,json,css,less}\" \"*.{json,yaml}\"",
-    "format:check": "prettier --check \"apps/**/*.{ts,tsx,js,mjs,jsx,json,css,less}\" \"packages/**/*.{ts,tsx,js,mjs,json,css,less}\" \"*.{json,yaml}\"",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,js,mjs,cjs,jsx,json,css,less}\" \"packages/**/*.{ts,tsx,js,mjs,cjs,json,css,less}\" \"*.{json,yaml}\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,js,mjs,cjs,jsx,json,css,less}\" \"packages/**/*.{ts,tsx,js,mjs,cjs,json,css,less}\" \"*.{json,yaml}\"",
     "dev:desktop": "pnpm --filter test-agent-desktop dev",
     "desktop": "pnpm build:agent && pnpm --filter test-agent-desktop start",
     "package:mac": "pnpm build:agent && pnpm --filter test-agent-desktop package:mac",
     "package:win": "pnpm build:agent && pnpm --filter test-agent-desktop package:win"
   },
   "engines": {
-    "node": ">=22.12.0",
+    "node": ">=22.13.0",
     "pnpm": ">=9.0.0"
   },
   "devDependencies": {
