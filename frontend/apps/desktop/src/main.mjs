@@ -9,6 +9,7 @@ import { WorkspaceService } from './workspace.mjs';
 import { FeishuService } from './feishu.mjs';
 import { parseInWorker } from './documents/import.mjs';
 import { registerWorkspaceHandlers } from './ipc.mjs';
+import { APP_DISPLAY_NAME, applicationMenuTemplate } from './menu.mjs';
 
 const development = !app.isPackaged && process.argv.includes('--dev');
 const sourceRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +17,7 @@ const uiRoot = app.isPackaged
   ? path.join(process.resourcesPath, 'ui')
   : path.resolve(sourceRoot, '../../agent-web/dist');
 
+// 内部标识和数据目录保持稳定，菜单、窗口及关于面板使用中文展示名称。
 app.setName('Test Agent');
 app.setPath(
   'userData',
@@ -28,7 +30,7 @@ protocol.registerSchemesAsPrivileged([
 const fail = (error) => {
   console.error(error);
   dialog.showErrorBox(
-    'Test Agent 启动失败',
+    `${APP_DISPLAY_NAME}启动失败`,
     error instanceof Error ? error.message : String(error),
   );
   app.exit(1);
@@ -36,7 +38,7 @@ const fail = (error) => {
 
 async function createWindow() {
   const window = new BrowserWindow({
-    title: 'Test Agent',
+    title: APP_DISPLAY_NAME,
     width: 1280,
     height: 840,
     minWidth: 780,
@@ -136,15 +138,8 @@ if (!['darwin', 'win32'].includes(process.platform)) {
             isAppNavigation(contents.getURL(), development),
         );
       });
-      Menu.setApplicationMenu(
-        Menu.buildFromTemplate([
-          ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
-          { role: 'fileMenu' },
-          { role: 'editMenu' },
-          { role: 'viewMenu' },
-          { role: 'windowMenu' },
-        ]),
-      );
+      app.setAboutPanelOptions({ applicationName: APP_DISPLAY_NAME });
+      Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenuTemplate()));
       await createWindow();
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) void createWindow().catch(fail);

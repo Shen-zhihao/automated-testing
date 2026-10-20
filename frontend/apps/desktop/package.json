@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "local.testagent.desktop",
-    "productName": "Test Agent",
+    "productName": "自动化测试助手",
     "asar": true,
     "directories": {
       "output": "../../../artifacts/desktop"

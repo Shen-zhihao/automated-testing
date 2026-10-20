@@ -117,10 +117,33 @@
   }
   .welcomeSteps {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 20px;
     font-size: 11px;
     color: #94a3b8;
     margin: 10px 0;
+    .complete {
+      color: #15803d;
+    }
+  }
+  .welcomeNextStep {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 100%;
+  }
+  .welcomeModelStatus {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+  .welcomeActions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
   }
   .documentDetailHeading {
     display: flex;

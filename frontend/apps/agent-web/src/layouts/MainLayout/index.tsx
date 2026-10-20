@@ -18,7 +18,7 @@ export default function MainLayout() {
     <div className="mainLayout">
       <header className="topBar">
         <NavLink className="brandBlock" to="/documents">
-          <span className="brandTitle">Test Agent</span>
+          <span className="brandTitle">自动化测试助手</span>
         </NavLink>
         <nav className="mainNav" aria-label="主导航">
           <NavLink to="/documents">文档分析</NavLink>

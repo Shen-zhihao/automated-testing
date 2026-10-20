@@ -48,7 +48,7 @@ export default function SettingsPage() {
     <div className="settingsPage workPage">
       <header className="workHeading">
         <div>
-          <div className="workEyebrow">PREFERENCES</div>
+          <div className="workEyebrow">偏好设置</div>
           <h1>设置</h1>
           <p>配置分析模型，连接你的飞书。所有配置仅保存在这台电脑。</p>
         </div>

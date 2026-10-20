@@ -160,7 +160,7 @@ export default function ChatHomePage() {
             ☰
           </button>
           <div className="chatHeaderMain">
-            <div className="chatEyebrow">TEST AGENT WORKSPACE</div>
+            <div className="chatEyebrow">测试助手工作台</div>
             <h1 className="chatTitle">{activeSession?.title ?? '从一个测试目标开始'}</h1>
             <p className="chatSubtitle">整理目标与思路，逐步搭建你的测试 Agent。</p>
           </div>

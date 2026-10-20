@@ -55,6 +55,11 @@ export default function DocumentsPage() {
   const job = state.jobs[activeId];
   const running = job?.status === 'running';
   const importing = state.importing || busy === 'files' || busy === 'link';
+  const modelName = state.settings.model.model.trim();
+  const modelConfigured = Boolean(modelName);
+  const modelSetupHint = state.settings.hasApiKey
+    ? 'API Key 已保存，请补充模型名称。'
+    : '配置模型后，即可分析文档。';
   const visible = state.documents.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase()),
   );
@@ -71,41 +76,34 @@ export default function DocumentsPage() {
       setBusy('');
     }
   };
+  const openFeishuImport = () => {
+    setError('');
+    setLinkOpen(true);
+  };
+  const importFiles = () =>
+    void action('files', async () => {
+      const result = await desktop.importFiles();
+      if (result.imported.length) {
+        await refresh();
+        setActiveId(result.imported[0]);
+        setNotice(`已导入 ${result.imported.length} 份文档。`);
+      }
+      if (result.errors.length)
+        setError(result.errors.map((item) => `${item.name}：${item.message}`).join('\n'));
+    });
   return (
     <div className="documentsPage workPage">
       <header className="workHeading">
         <div>
-          <div className="workEyebrow">DOCUMENT INTELLIGENCE</div>
+          <div className="workEyebrow">文档理解</div>
           <h1>从文档到测试思路</h1>
           <p>导入需求，理解规则，梳理值得验证的场景。</p>
         </div>
         <div className="headingActions">
-          <button
-            className="workButton"
-            disabled={importing}
-            onClick={() => {
-              setError('');
-              setLinkOpen(true);
-            }}
-          >
+          <button className="workButton" disabled={importing} onClick={openFeishuImport}>
             导入飞书链接
           </button>
-          <button
-            className="workButton primary"
-            disabled={importing}
-            onClick={() =>
-              void action('files', async () => {
-                const result = await desktop.importFiles();
-                if (result.imported.length) {
-                  await refresh();
-                  setActiveId(result.imported[0]);
-                  setNotice(`已导入 ${result.imported.length} 份文档。`);
-                }
-                if (result.errors.length)
-                  setError(result.errors.map((item) => `${item.name}：${item.message}`).join('\n'));
-              })
-            }
-          >
+          <button className="workButton primary" disabled={importing} onClick={importFiles}>
             {importing ? '正在导入…' : '＋ 导入本地文档'}
           </button>
         </div>
@@ -180,12 +178,34 @@ export default function DocumentsPage() {
               </p>
               <div className="welcomeSteps">
                 <span>01 导入资料</span>
-                <span>02 配置模型</span>
+                <span className={modelConfigured ? 'complete' : undefined}>
+                  {modelConfigured ? '02 模型已配置' : '02 配置模型'}
+                </span>
                 <span>03 分析测试点</span>
               </div>
-              <Link className="workButton" to="/settings">
-                前往设置模型
-              </Link>
+              <div className="welcomeNextStep">
+                <p className="welcomeModelStatus" role="status">
+                  {modelConfigured ? `已配置模型：${modelName}` : modelSetupHint}
+                </p>
+                {modelConfigured ? (
+                  <div className="welcomeActions">
+                    <button
+                      className="workButton primary"
+                      disabled={importing}
+                      onClick={importFiles}
+                    >
+                      {importing ? '正在导入…' : '＋ 导入本地文档'}
+                    </button>
+                    <button className="workButton" disabled={importing} onClick={openFeishuImport}>
+                      导入飞书链接
+                    </button>
+                  </div>
+                ) : (
+                  <Link className="workButton" to="/settings">
+                    {state.settings.hasApiKey ? '补充模型名称' : '前往设置模型'}
+                  </Link>
+                )}
+              </div>
             </div>
           ) : !document ? (
             <div className="workEmpty">正在打开文档…</div>
@@ -227,13 +247,13 @@ export default function DocumentsPage() {
                 />
                 <div className="analysisActions">
                   <div>
-                    {state.settings.model.model ? (
+                    {modelConfigured ? (
                       <>
-                        <strong>{state.settings.model.model}</strong>
+                        <strong>{modelName}</strong>
                         <small>分析时将文档文字发送至 {state.settings.model.baseUrl}</small>
                       </>
                     ) : (
-                      <Link to="/settings">先配置模型，即可开始分析 →</Link>
+                      <Link to="/settings">{modelSetupHint} →</Link>
                     )}
                   </div>
                   {running ? (
@@ -246,7 +266,7 @@ export default function DocumentsPage() {
                   ) : (
                     <button
                       className="workButton primary"
-                      disabled={!state.settings.model.model || Boolean(busy)}
+                      disabled={!modelConfigured || Boolean(busy)}
                       onClick={() => {
                         setTab('analysis');
                         void action('analyze', async () => {
