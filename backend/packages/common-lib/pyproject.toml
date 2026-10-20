@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "common-lib"
+version = "0.1.0"
+description = "共享配置、响应类型与 Web 应用基础设施"
+authors = ["Project Team"]
+packages = [{ include = "common_lib", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.5"
+pydantic-settings = "^2.1"
+fastapi = "^0.108"
+
+[build-system]
+requires = ["poetry-core>=1.7"]
+build-backend = "poetry.core.masonry.api"

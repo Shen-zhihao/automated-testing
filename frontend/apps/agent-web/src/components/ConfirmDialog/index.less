@@ -1,0 +1,51 @@
+.confirmContent {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--textColorSecondary, #6b7280);
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+
+  .btn {
+    height: 38px;
+    padding: 0 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    transition:
+      background 0.15s ease,
+      opacity 0.15s ease;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    &.cancel {
+      background: var(--bgColorPage, #f3f4f6);
+      color: var(--textColorSecondary, #6b7280);
+      &:hover:not(:disabled) {
+        background: #e5e7eb;
+      }
+    }
+
+    &.primary {
+      background: var(--primaryColor, #111827);
+      color: #ffffff;
+      &:hover:not(:disabled) {
+        background: #1f2937;
+      }
+    }
+
+    &.danger {
+      background: var(--errorColor, #ff4d4f);
+      color: #ffffff;
+      &:hover:not(:disabled) {
+        background: #f5222d;
+      }
+    }
+  }
+}

@@ -1,0 +1,178 @@
+.taskDetailPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .pageHeader {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .backBtn {
+      padding: 6px 14px;
+      border: 1px solid var(--borderColor);
+      border-radius: 6px;
+      color: var(--textColorSecondary);
+      font-size: 13px;
+      background: #ffffff;
+
+      &:hover {
+        color: var(--primaryColor);
+        border-color: var(--primaryColor);
+      }
+    }
+
+    .pageTitle {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--textColorPrimary);
+    }
+  }
+
+  .detailCard,
+  .logsCard {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+
+    .detailRow {
+      display: flex;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--borderColor);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .detailLabel {
+        width: 120px;
+        flex-shrink: 0;
+        color: var(--textColorSecondary);
+        font-size: 14px;
+      }
+
+      .detailValue {
+        flex: 1;
+        color: var(--textColorPrimary);
+        font-size: 14px;
+
+        &.paramsBox {
+          pre {
+            background: var(--bgColorPage);
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+            color: var(--textColorPrimary);
+          }
+        }
+      }
+    }
+
+    .statusTag {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+
+      &.statusRunning {
+        background: #e6f4ff;
+        color: var(--primaryColor);
+      }
+
+      &.statusCompleted {
+        background: #f6ffed;
+        color: var(--successColor);
+      }
+
+      &.statusFailed {
+        background: #fff1f0;
+        color: var(--errorColor);
+      }
+    }
+
+    .cardTitle {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--textColorPrimary);
+      margin-bottom: 16px;
+    }
+
+    .logsList {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+
+      .logItem {
+        padding: 12px;
+        border-radius: 6px;
+        background: var(--bgColorPage);
+        border-left: 3px solid var(--borderColor);
+
+        &.logwarning {
+          border-left-color: var(--warningColor);
+          background: #fffbe6;
+        }
+
+        &.logerror {
+          border-left-color: var(--errorColor);
+          background: #fff1f0;
+        }
+
+        .logMeta {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 4px;
+          font-size: 12px;
+
+          .logTime {
+            color: var(--textColorSecondary);
+          }
+
+          .logNode {
+            color: var(--primaryColor);
+          }
+
+          .logLevel {
+            padding: 0 6px;
+            border-radius: 4px;
+            font-weight: 600;
+
+            &.levelInfo {
+              background: #e6f4ff;
+              color: var(--primaryColor);
+            }
+
+            &.levelWarning {
+              background: #fff7e6;
+              color: var(--warningColor);
+            }
+
+            &.levelError {
+              background: #fff1f0;
+              color: var(--errorColor);
+            }
+          }
+        }
+
+        .logMessage {
+          font-size: 13px;
+          color: var(--textColorPrimary);
+        }
+      }
+    }
+  }
+}
+
+.taskDetailPage .detailValue {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+@media (max-width: 600px) {
+  .taskDetailPage .detailCard .detailRow {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

@@ -1,0 +1,422 @@
+.skillPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .skillUploadActions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .skillUploadBtn,
+  .skillZipBtn {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border-radius: 13px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  }
+
+  .skillUploadBtn {
+    flex: 1;
+  }
+
+  .skillZipBtn {
+    flex: 0 0 50%;
+    background: #f3f4f6;
+    color: #4b5563;
+  }
+
+  .skillSearch {
+    height: 40px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 12px;
+    background: #ffffff;
+    color: #9ca3af;
+
+    &:focus-within {
+      border-color: rgba(17, 24, 39, 0.35);
+      box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.05);
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: #111827;
+      font-size: 13px;
+    }
+  }
+
+  .skillSummaryRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #9ca3af;
+  }
+
+  .skillFeedback {
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: #f3f4f6;
+    color: #4b5563;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .skillList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .skillEmpty {
+    padding: 28px 12px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 12px;
+  }
+
+  .skillItem {
+    width: 100%;
+    padding: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border: 1px solid transparent;
+    border-radius: 15px;
+    background: #f9fafb;
+    color: #374151;
+    text-align: left;
+    cursor: pointer;
+    transition: 0.18s ease;
+
+    &:hover {
+      border-color: rgba(15, 23, 42, 0.12);
+      background: #ffffff;
+    }
+
+    &.isDisabled {
+      opacity: 0.48;
+    }
+  }
+
+  .skillIcon {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .skillItemBody {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .skillNameRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    strong {
+      overflow: hidden;
+      color: #111827;
+      font-size: 13px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .skillVersion {
+    flex: 0 0 auto;
+    color: #9ca3af;
+    font-size: 10px;
+  }
+
+  .skillDescription {
+    display: -webkit-box;
+    overflow: hidden;
+    color: #6b7280;
+    font-size: 11px;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .skillMeta {
+    color: #9ca3af;
+    font-size: 10px;
+  }
+
+  .skillItemChevron {
+    flex: 0 0 auto;
+    align-self: center;
+    color: #9ca3af;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .skillHint {
+    margin: 0;
+    color: #9ca3af;
+    font-size: 10px;
+    line-height: 1.5;
+  }
+}
+
+.skillDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.skillDetailDesc {
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.skillDetailHeading {
+  margin: 0;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.skillDetailGrid {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.skillDetailRow {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  dt {
+    flex: 0 0 76px;
+    color: #9ca3af;
+    font-size: 12px;
+  }
+
+  dd {
+    flex: 1;
+    margin: 0;
+    color: #374151;
+    font-size: 12px;
+    word-break: break-all;
+  }
+}
+
+.skillDetailContentHeading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skillDetailContentFilename {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+.skillDetailContentStatus {
+  padding: 16px 12px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+
+  &.error {
+    color: #dc2626;
+  }
+}
+
+.skillDetailBody {
+  max-height: 360px;
+  overflow: auto;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.skillDetailFrontmatter {
+  margin-bottom: 12px;
+
+  summary {
+    cursor: pointer;
+    color: #9ca3af;
+    font-size: 12px;
+    user-select: none;
+  }
+
+  pre {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.04);
+    overflow: auto;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  }
+}
+
+.skillDetailMarkdown {
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 1.1em 0 0.5em;
+    color: #111827;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: 18px;
+  }
+
+  h2 {
+    font-size: 16px;
+  }
+
+  h3,
+  h4 {
+    font-size: 14px;
+  }
+
+  p {
+    margin: 0.6em 0;
+  }
+
+  ul,
+  ol {
+    margin: 0.6em 0;
+    padding-left: 1.4em;
+  }
+
+  li {
+    margin: 0.25em 0;
+  }
+
+  a {
+    color: #2563eb;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  code {
+    padding: 0.15em 0.35em;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.06);
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  }
+
+  pre {
+    margin: 0.6em 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.05);
+    overflow: auto;
+
+    code {
+      padding: 0;
+      background: none;
+    }
+  }
+
+  blockquote {
+    margin: 0.6em 0;
+    padding: 0 0 0 12px;
+    border-left: 3px solid rgba(15, 23, 42, 0.12);
+    color: #6b7280;
+  }
+
+  table {
+    width: 100%;
+    margin: 0.6em 0;
+    border-collapse: collapse;
+
+    th,
+    td {
+      padding: 6px 10px;
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      font-size: 12px;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(15, 23, 42, 0.04);
+    }
+  }
+
+  hr {
+    margin: 1em 0;
+    border: 0;
+    border-top: 1px solid rgba(15, 23, 42, 0.1);
+  }
+
+  img {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .skillPanel {
+    .skillList {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
