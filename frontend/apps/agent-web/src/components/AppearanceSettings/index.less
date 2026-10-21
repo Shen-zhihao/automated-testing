@@ -1,0 +1,146 @@
+.appearanceOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.appearanceOption {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-primary);
+  padding: 15px;
+  text-align: left;
+  color: var(--text-primary);
+  &[aria-pressed='true'] {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+    background: var(--surface-accent);
+  }
+  p {
+    font-size: 11px;
+    margin-top: 8px;
+    color: var(--text-secondary);
+  }
+}
+.appearanceOptionTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  strong {
+    font-size: 13px;
+    font-weight: 550;
+  }
+}
+.appearanceCheck {
+  margin-left: auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--surface-tertiary);
+  color: var(--text-accent);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+.appearanceMini {
+  height: 76px;
+  display: flex;
+  gap: 12px;
+  background: #f6f8fc;
+  border: 1px solid #d6dfed;
+  border-radius: 7px;
+  overflow: hidden;
+  > i {
+    display: block;
+    width: 26%;
+    background: #e7ecf5;
+  }
+  div {
+    flex: 1;
+    padding: 13px 12px 0 0;
+  }
+  b,
+  span {
+    display: block;
+    height: 7px;
+    border-radius: 3px;
+    background: #d2daea;
+    margin-bottom: 8px;
+  }
+  b {
+    background: #8d9ed0;
+    width: 55%;
+  }
+  span:last-child {
+    width: 72%;
+  }
+}
+.preview-dark .appearanceMini {
+  background: #172131;
+  border-color: #42516a;
+  > i {
+    background: #223047;
+  }
+  b {
+    background: #8599d9;
+  }
+  span {
+    background: #3a4a66;
+  }
+}
+.preview-system .appearanceMini {
+  background: linear-gradient(110deg, #f6f8fc 50%, #172131 50%);
+  > i {
+    background: #dfe5f0;
+  }
+  b {
+    background: #9aa9cf;
+  }
+  span {
+    background: #788ba8;
+  }
+}
+.appearanceQuick {
+  padding: 6px 12px;
+  label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+  }
+  select {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 12px;
+    padding: 4px 0;
+    cursor: pointer;
+  }
+  p {
+    font-size: 11px;
+    color: var(--danger);
+    line-height: 1.7;
+  }
+}
+@media (max-width: 900px) {
+  .appearanceOptions {
+    gap: 10px;
+  }
+  .appearanceOption {
+    padding: 11px;
+  }
+}
+@media (max-width: 700px) {
+  .appearanceOptions {
+    grid-template-columns: 1fr;
+  }
+  .appearanceMini {
+    display: none;
+  }
+  .appearanceOptionTitle {
+    margin-top: 0;
+  }
+}

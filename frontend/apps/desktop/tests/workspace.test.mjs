@@ -8,6 +8,7 @@ import { SettingsService, DEFAULT_MODEL, normalizeBaseUrl } from '../src/setting
 import { WorkspaceService } from '../src/workspace.mjs';
 import { complete, analyzeDocument, splitText } from '../src/model.mjs';
 import { createServer } from 'node:http';
+import { reportFixture } from './report-fixture.mjs';
 
 const vault = {
   encrypt: async (text) => Buffer.from(text.split('').reverse().join('')),
@@ -190,15 +191,19 @@ test('long document analysis covers every segment and reports progress before fi
     onProgress: (value) => progress.push(value),
     fetchImpl: async (_, request) => {
       const body = JSON.parse(request.body);
+      if (body.messages[0]?.content.includes('独立的工程范围与安全审查器'))
+        return answer('{"decision":"allow"}');
       calls.push(body);
-      return answer(calls.length <= 3 ? '分段笔记：锁定条件' : '# 测试场景\n验证锁定');
+      return answer(calls.length <= 3 ? '分段笔记：锁定条件' : reportFixture);
     },
   });
   assert.equal(analysis.segments, 3);
   assert.ok(calls.some((call) => call.messages[1].content.includes('尾部独有需求')));
   assert.equal(calls.length, 4);
   assert.match(calls[3].messages[1].content, /分段分析笔记/);
-  assert.equal(progress.at(-1), '正在生成完整分析');
+  assert.equal(analysis.kind, 'implementation-plan');
+  assert.ok(analysis.content.includes(reportFixture.trim()));
+  assert.equal(progress.at(-1), '正在编写功能实现步骤与验收标准');
 });
 
 test('mixed import keeps valid files; cancellation preserves previous analysis and allows retry', async () => {
@@ -233,8 +238,111 @@ test('mixed import keeps valid files; cancellation preserves previous analysis a
   await assert.rejects(running, /取消/);
   assert.equal(store.getDocument(id).analysis.content, 'previous report');
   assert.equal(service.snapshot().jobs[id].status, 'cancelled');
-  service.fetchImpl = async () => answer('new report');
+  service.fetchImpl = async (_, options) =>
+    answer(
+      JSON.parse(options.body).messages[0]?.content.includes('独立的工程范围与安全审查器')
+        ? '{"decision":"allow"}'
+        : '## 功能实现步骤\n仅包含步骤，缺少验收。',
+    );
+  await assert.rejects(service.analyze(id, ''), /功能验收标准/);
+  assert.equal(store.getDocument(id).analysis.content, 'previous report');
+  service.fetchImpl = async (_, options) =>
+    answer(
+      JSON.parse(options.body).messages[0]?.content.includes('独立的工程范围与安全审查器')
+        ? '{"decision":"allow"}'
+        : reportFixture,
+    );
   await service.analyze(id, '');
-  assert.equal(store.getDocument(id).analysis.content, 'new report');
+  assert.equal(store.getDocument(id).analysis.kind, 'implementation-plan');
+  assert.ok(store.getDocument(id).analysis.content.includes(reportFixture.trim()));
   store.close();
+});
+
+test('larger output settings reach the model unchanged and no longer hit the old character cap', async () => {
+  const store = new WorkspaceStore(':memory:');
+  const settings = new SettingsService(store, vault);
+  try {
+    await settings.save({
+      model: { ...config, maxTokens: 393216 },
+      apiKey: '',
+      clearApiKey: false,
+    });
+    const result = await complete(
+      await settings.modelConfig(),
+      [{ role: 'user', content: 'fixture' }],
+      {
+        fetchImpl: async (_, request) => {
+          assert.equal(JSON.parse(request.body).max_tokens, 393216);
+          return answer('结论'.repeat(60000));
+        },
+      },
+    );
+    assert.equal(result.length, 120000);
+    await assert.rejects(settings.save({ model: { ...config, maxTokens: 1048576 } }), /输出上限/);
+  } finally {
+    store.close();
+  }
+});
+
+test('source refresh failure keeps the document and blocks analysis of stale text while refreshing', async () => {
+  const store = new WorkspaceStore(':memory:');
+  const settings = new SettingsService(store, vault);
+  const doc = store.addDocument(source);
+  store.saveAnalysis(doc.id, { content: '已有结果' });
+  let rejectRead;
+  const service = new WorkspaceService({
+    store,
+    settings,
+    feishu: { status: () => ({}) },
+    parseFile: () =>
+      new Promise((_, reject) => {
+        rejectRead = reject;
+      }),
+  });
+  const refresh = service.refreshDocument(doc.id);
+  await assert.rejects(service.analyze(doc.id, ''), /重新提取/);
+  assert.throws(() => service.remove(doc.id), /重新提取/);
+  rejectRead(new Error('source-missing'));
+  await assert.rejects(refresh, /source-missing/);
+  assert.equal(store.getDocument(doc.id).analysis.content, '已有结果');
+  assert.equal(service.importing, false);
+  store.close();
+});
+
+test('long HTML analysis carries interaction and error evidence through chunk reading to the testing report request', async () => {
+  const calls = [];
+  const html = {
+    ...source,
+    kind: 'html',
+    name: 'prototype.html',
+    content: '流程入口\n' + '页面状态\n'.repeat(2600) + '\n末尾规则：失败只重试本段',
+  };
+  const chunks = splitText(html.content);
+  const htmlReport =
+    reportFixture +
+    ['端到端业务流程', '关键交互与状态流转', '错误处理与恢复', '测试实施方向']
+      .map((title) => `\n## ${title}\n测试场景、前置条件和可观察断言待执行。`)
+      .join('');
+  await analyzeDocument(html, '', config, {
+    fetchImpl: async (_, request) => {
+      const body = JSON.parse(request.body);
+      if (body.messages[0]?.content.includes('独立的工程范围与安全审查器'))
+        return answer('{"decision":"allow"}');
+      calls.push(body.messages[1].content);
+      return answer(calls.length <= chunks.length ? '失败恢复证据：只重试本段。' : htmlReport);
+    },
+  });
+  assert.equal(calls.length, chunks.length + 1);
+  assert.ok(
+    calls.every(
+      (text) =>
+        text.includes('HTML 原型静态提取') &&
+        text.includes('跨页面数据') &&
+        text.includes('重试/取消/返回/恢复'),
+    ),
+  );
+  assert.match(calls[chunks.length - 1], /末尾规则：失败只重试本段/);
+  for (const title of ['端到端业务流程', '关键交互与状态流转', '错误处理与恢复', '测试实施方向'])
+    assert.ok(calls.at(-1).includes(`## ${title}`));
+  assert.match(calls.at(-1), /所需环境/);
 });

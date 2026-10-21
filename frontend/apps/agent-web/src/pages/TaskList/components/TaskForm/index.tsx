@@ -1,56 +1,110 @@
-import { useState, type FormEvent } from 'react';
-import { prototypeApi, type TaskKind } from '@project/shared-api';
-import { taskKindLabels } from '@/utils/tasks';
-import './index.less';
-
-export default function TaskForm({ onCreated }: { onCreated: (id: number) => void }) {
+import { useProject } from '@/hooks/useProject';
+import { useEffect, useState, type FormEvent } from 'react';
+import type { RequirementFeature } from '@project/shared-api';
+import { useWorkspace } from '@/hooks/useWorkspace';
+export default function TaskForm({ onCreated }: { onCreated: (id: string) => void }) {
+  const { api } = useProject();
+  const { state, refresh } = useWorkspace();
+  const [documentId, setDocumentId] = useState('');
+  const [features, setFeatures] = useState<RequirementFeature[]>([]);
+  const [featureId, setFeatureId] = useState('');
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<TaskKind>('ui');
-  const [target, setTarget] = useState('');
+  const [scope, setScope] = useState('');
   const [error, setError] = useState('');
-  const submit = (event: FormEvent) => {
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setFeatures([]);
+    if (documentId)
+      void api
+        ?.testingFeatures(documentId)
+        .then((value) => {
+          if (active) setFeatures(value);
+        })
+        .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [documentId]);
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (!api || busy) return;
+    setBusy(true);
+    setError('');
     try {
-      onCreated(prototypeApi.createTask({ name, kind, target }).id);
+      const task = await api.createTestTask({
+        documentId,
+        featureId,
+        name: name.trim() || undefined,
+        scope: scope.trim() || undefined,
+      });
+      await refresh();
+      onCreated(task.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '创建失败');
+    } finally {
+      setBusy(false);
     }
   };
   return (
-    <form className="taskForm" onSubmit={submit}>
-      <label>
-        任务名称
-        <input
+    <form className="testingForm" onSubmit={(event) => void submit(event)}>
+      <label className="fullWidth">
+        需求文档
+        <select
           required
-          maxLength={120}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="例如：登录页面冒烟测试"
-        />
+          value={documentId}
+          onChange={(event) => {
+            setDocumentId(event.target.value);
+            setFeatureId('');
+          }}
+        >
+          <option value="">选择已分析的需求</option>
+          {state?.documents
+            .filter((doc) => doc.analyzed)
+            .map((doc) => (
+              <option key={doc.id} value={doc.id}>
+                {doc.name}
+              </option>
+            ))}
+        </select>
       </label>
-      <label>
-        测试类型
-        <select value={kind} onChange={(event) => setKind(event.target.value as TaskKind)}>
-          {Object.entries(taskKindLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
+      <label className="fullWidth">
+        功能范围
+        <select value={featureId} onChange={(event) => setFeatureId(event.target.value)}>
+          <option value="">整份需求</option>
+          {features.map((feature) => (
+            <option key={feature.id} value={feature.id}>
+              {feature.id} {feature.title}
             </option>
           ))}
         </select>
       </label>
-      <label>
-        测试目标（可选）
-        <textarea
-          rows={3}
-          maxLength={2000}
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          placeholder="填写页面地址、接口路径或测试范围"
+      <label className="fullWidth">
+        任务名称
+        <input
+          value={name}
+          maxLength={160}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="留空使用功能或文档名称"
         />
       </label>
-      {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={!name.trim()}>
-        创建草稿
+      <label className="fullWidth">
+        补充测试范围
+        <textarea
+          value={scope}
+          maxLength={4000}
+          rows={3}
+          onChange={(event) => setScope(event.target.value)}
+          placeholder="例如：覆盖登录主流程、错误输入、失败恢复和权限边界"
+        />
+      </label>
+      {error && (
+        <p className="testError fullWidth" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="testButton primary" disabled={!documentId || busy}>
+        {busy ? '正在创建…' : '创建测试任务'}
       </button>
     </form>
   );

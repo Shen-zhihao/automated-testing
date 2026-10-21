@@ -1,0 +1,61 @@
+.chatAttachment {
+  position: relative;
+  flex-shrink: 0;
+  .attachmentTrigger {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 6px;
+    border: 0;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    background: transparent;
+    cursor: pointer;
+    &:hover,
+    &[aria-expanded='true'] {
+      background: var(--surface-secondary);
+      color: var(--text-title);
+    }
+    &:disabled {
+      opacity: 0.45;
+      cursor: wait;
+    }
+  }
+  .attachmentOptions {
+    position: absolute;
+    left: -4px;
+    bottom: calc(100% + 10px);
+    z-index: 20;
+    width: 270px;
+    padding: 6px;
+    border-radius: 13px;
+    background: var(--surface-primary);
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 38px var(--shadow-color);
+    button {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      gap: 5px;
+      border: 0;
+      border-radius: 8px;
+      padding: 12px;
+      background: none;
+      color: var(--text-primary);
+      text-align: left;
+      cursor: pointer;
+      &:hover,
+      &:focus-visible {
+        background: var(--surface-secondary);
+      }
+      span {
+        font-size: 14px;
+      }
+      small {
+        color: var(--text-secondary);
+        font-size: 12px;
+      }
+    }
+  }
+}

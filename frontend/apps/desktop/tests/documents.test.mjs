@@ -24,7 +24,12 @@ test('common document formats preserve useful content, slide order and sheet lab
     await t.test(file, async () => {
       const doc = await parseDocument(path.join(dir, file));
       assert.ok(doc.content.includes(expected), doc.content);
-      assert.ok(!doc.content.includes('SECRET_SCRIPT'));
+      if (doc.kind === 'html') {
+        // 原型脚本现在作为独立静态证据保存，不混入页面正文，也不能执行。
+        assert.ok(!doc.content.split('## 内联逻辑与数据')[0].includes('SECRET_SCRIPT'));
+        assert.match(doc.content, /未执行/);
+        assert.doesNotMatch(doc.preview.content, /<script/);
+      } else assert.ok(!doc.content.includes('SECRET_SCRIPT'));
     });
   }
   const result = await parseInWorker(path.join(dir, 'requirements.pdf'));

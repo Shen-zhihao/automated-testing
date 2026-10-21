@@ -1,7 +1,7 @@
 .confirmContent {
   font-size: 13px;
   line-height: 1.7;
-  color: var(--textColorSecondary, #6b7280);
+  color: var(--textColorSecondary, var(--text-secondary));
 }
 
 .confirmActions {
@@ -25,26 +25,26 @@
     }
 
     &.cancel {
-      background: var(--bgColorPage, #f3f4f6);
-      color: var(--textColorSecondary, #6b7280);
+      background: var(--bgColorPage, var(--surface-secondary));
+      color: var(--textColorSecondary, var(--text-secondary));
       &:hover:not(:disabled) {
-        background: #e5e7eb;
+        background: var(--surface-tertiary);
       }
     }
 
     &.primary {
-      background: var(--primaryColor, #111827);
-      color: #ffffff;
+      background: var(--primaryColor, var(--accent));
+      color: var(--on-accent);
       &:hover:not(:disabled) {
-        background: #1f2937;
+        background: var(--accent);
       }
     }
 
     &.danger {
-      background: var(--errorColor, #ff4d4f);
-      color: #ffffff;
+      background: var(--errorColor, var(--accent));
+      color: var(--on-accent);
       &:hover:not(:disabled) {
-        background: #f5222d;
+        background: var(--accent);
       }
     }
   }

@@ -56,6 +56,26 @@ function documentResponse(url) {
     return json({ code: 0, data: { node: { obj_type: 'docx', obj_token: 'Doc123' } } });
   if (url.endsWith('/raw_content'))
     return json({ code: 0, data: { content: '登录失败三次后锁定账号。' } });
+  if (url.includes('/blocks?'))
+    return json({
+      code: 0,
+      data: {
+        items: [
+          {
+            block_id: 'Doc123',
+            page: { elements: [{ text_run: { content: '登录需求' } }] },
+            children: ['paragraph', 'image'],
+          },
+          {
+            block_id: 'paragraph',
+            parent_id: 'Doc123',
+            text: { elements: [{ text_run: { content: '登录失败三次后锁定账号。' } }] },
+          },
+          { block_id: 'image', parent_id: 'Doc123', image: { token: 'not-downloaded' } },
+        ],
+        has_more: false,
+      },
+    });
   return json({ code: 0, data: { document: { title: '登录需求' } } });
 }
 
@@ -200,7 +220,8 @@ test('docx and wiki import reuse app tokens and reacquire once on expiry or rest
     const doc = await service.read(`https://tenant.feishu.cn/${type}/Doc123`);
     assert.equal(doc.name, '登录需求');
     assert.match(doc.content, /锁定账号/);
-    assert.match(doc.warnings[0], /应用身份.*未展开/);
+    assert.match(doc.warnings[0], /图片.*未展开/);
+    assert.match(doc.preview.content, /<h1>登录需求<\/h1>/);
   }
   assert.equal(calls, 1);
   now += 7190000;

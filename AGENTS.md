@@ -36,7 +36,8 @@
 
 - 产品仅面向 Windows 和 macOS，桌面外壳放在 `frontend/apps/desktop`，React UI 继续放在 `frontend/apps/agent-web`。
 - 不使用 Docker、容器编排、Nginx 或云端部署脚本；用户运行桌面应用不应依赖远程数据库或额外安装数据库服务。
-- 持久化采用本地 SQLite；文档、分析结果和配置已落入 `app.getPath('userData')/storage/test-agent.sqlite`，禁止写入安装目录或源码目录。
+- 持久化采用本地 SQLite；文档、格式预览、分析结果和配置默认落入 `app.getPath('userData')/storage/test-agent.sqlite`，可在设置中选择其他本机目录；目录指针保存在固定 `userData/storage-location.json`，不移动系统凭据存储身份。禁止写入安装目录或源码目录。
+- 更换保存目录必须使用 SQLite 备份接口覆盖 WAL 数据、验证新库、原子更新目录指针后切换连接；旧目录保留副本，不覆盖目标已有数据库。迁移与导入、分析、设置保存互斥；配置目录失效时不得悄悄创建空库替代用户数据。
 - 渲染进程不直接访问文件系统、数据库或系统命令；通过受限的 preload / IPC 接口交给主进程或本地执行模块。新增 IPC 必须校验主框架来源。
 - Python 当前只保留可选本机骨架，启动绑定 `127.0.0.1`；桌面原型不依赖它，也不自动拉起后台 HTTP 服务。
 - 不把“无需联网数据库”等同于“永远不允许联网”：以后测试目标访问、模型调用是否联网，应由用户配置和具体功能决定。
@@ -55,6 +56,7 @@
 
 - 文档导入、文档分析和设置是真实功能；对话和测试任务仍使用内存演示，刷新后清空。不要把两者的状态混为一谈。
 - 只有用户点击分析才向其配置的模型发送文档文字。导入不自动分析；长文不静默截断，图片/附件/扫描页未解析时必须展示提示。
+- 格式预览与分析文字分开存储。外部 HTML 须净化并在无脚本、无网络的沙盒中显示；飞书通过分页块接口还原标题、列表和表格。旧文档重新提取时，文字变化才使旧分析失效，失败保留原数据。
 - 按用户明确的范围逐步接入模型、执行器和本地持久化，避免提前扩充业务。
 - 桌面运行使用 `cd frontend && pnpm dev:desktop` 或 `pnpm desktop`。打包命令分别为 `pnpm package:mac` 和 `pnpm package:win`，仅在明确要求交付安装包时执行。
 - 前端检查使用 `make frontend-check` 与 `make frontend-build`；后端使用 `make backend-check`。Windows 可直接执行使用说明中的 pnpm / Poetry 命令，不依赖 Make。

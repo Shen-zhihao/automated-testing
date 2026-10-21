@@ -1,42 +1,23 @@
+import { FILE_EXTENSIONS, MAX_CHARACTERS, normalizeContent } from './content.mjs';
+export { FILE_EXTENSIONS, MAX_CHARACTERS, normalizeContent } from './content.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile, stat } from 'node:fs/promises';
-import AdmZip from 'adm-zip';
-import mammoth from 'mammoth';
-import ExcelJS from 'exceljs';
-import { XMLParser } from 'fast-xml-parser';
-import { convert } from 'html-to-text';
+import { escapeHtml, htmlPreview, delimitedPreview } from './preview.mjs';
 
-export const FILE_EXTENSIONS = [
-  'txt',
-  'md',
-  'markdown',
-  'csv',
-  'tsv',
-  'json',
-  'html',
-  'htm',
-  'pdf',
-  'docx',
-  'xlsx',
-  'pptx',
-];
-export const MAX_CHARACTERS = 200000;
 const MAX_BYTES = 20 * 1024 * 1024;
+const DOCX_STYLE_MAP = [
+  ...Array.from({ length: 6 }, (_, index) => index + 1).flatMap((level) => [
+    `p[style-name='标题 ${level}'] => h${level}:fresh`,
+    `p[style-name='标题${level}'] => h${level}:fresh`,
+  ]),
+  "p[style-name='Title'] => h1:fresh",
+  "p[style-name='标题'] => h1:fresh",
+  'u => u',
+];
 
-export function normalizeContent(text) {
-  if (typeof text !== 'string') throw new Error('文档未返回可读取的文字。');
-  const value = text
-    .replace(/\r\n?/g, '\n')
-    .replace(/\u0000/g, '')
-    .trim();
-  if (!value) throw new Error('未读取到文字。扫描件或图片需先进行 OCR；本版本只提取文档中的文字。');
-  if (value.length > MAX_CHARACTERS)
-    throw new Error('文档文字超过 20 万字符，请拆分后导入；内容没有被截断保存。');
-  return value;
-}
-
-function checkedZip(buffer) {
+async function checkedZip(buffer) {
+  const { default: AdmZip } = await import('adm-zip');
   const zip = new AdmZip(buffer);
   const entries = zip.getEntries();
   if (
@@ -140,20 +121,65 @@ export async function parseDocument(filePath) {
   if (buffer.length > MAX_BYTES) throw new Error('文件超过 20 MB。');
   const warnings = [];
   let content;
+  let preview = null;
   if (extension === 'pdf') content = await parsePdf(buffer, warnings);
   else if (['docx', 'xlsx', 'pptx'].includes(extension)) {
-    const zip = checkedZip(buffer);
+    const zip = await checkedZip(buffer);
     if (extension === 'docx') {
+      const { default: mammoth } = await import('mammoth');
       const result = await mammoth.extractRawText({ buffer });
       content = result.value;
-      if (result.messages.length) warnings.push('Word 中部分对象可能无法提取，请核对原文预览。');
+      let imageBytes = 0;
+      const imageWarnings = new Set();
+      const formatted = await mammoth.convertToHtml(
+        { buffer },
+        {
+          styleMap: DOCX_STYLE_MAP,
+          convertImage: mammoth.images.imgElement(async (image) => {
+            if (
+              !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(image.contentType)
+            ) {
+              imageWarnings.add('部分图片格式暂不支持，已保留图片位置说明，请对照原文件。');
+              return { src: '', alt: '此图片格式暂不支持预览' };
+            }
+            try {
+              const data = await image.read();
+              imageBytes += data.length;
+              if (imageBytes > 6 * 1024 * 1024) {
+                imageWarnings.add('内嵌图片总量超过 6 MB，部分图片以位置说明显示，请对照原文件。');
+                return { src: '', alt: '图片过大，请查看原文件' };
+              }
+              return { src: `data:${image.contentType};base64,${data.toString('base64')}` };
+            } catch {
+              imageWarnings.add('部分图片无法读取，已保留图片位置说明，请对照原文件。');
+              return { src: '', alt: '图片无法读取，请查看原文件' };
+            }
+          }),
+        },
+      );
+      preview = htmlPreview(formatted.value, warnings);
+      warnings.push(...imageWarnings);
+      if (result.messages.length || formatted.messages.length)
+        warnings.push('Word 中部分对象或样式无法完整转换，请核对原文预览。');
     } else if (extension === 'xlsx') {
+      const { default: ExcelJS } = await import('exceljs');
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
       const sheets = [];
+      const formattedSheets = [];
       let cells = 0;
       workbook.eachSheet((sheet) => {
         const rows = [];
+        const formattedRows = [];
+        if (sheet.rowCount * sheet.columnCount > 50000)
+          throw new Error('表格超过 5 万单元格，请拆分后导入。');
+        const merges = new Map();
+        for (const range of sheet.model.merges ?? []) {
+          const [start, end = start] = range.split(':');
+          const first = sheet.getCell(start),
+            last = sheet.getCell(end);
+          merges.set(start, { rows: last.row - first.row + 1, columns: last.col - first.col + 1 });
+        }
         sheet.eachRow((row, index) => {
           const values = [];
           row.eachCell({ includeEmpty: true }, (cell) => {
@@ -161,12 +187,30 @@ export async function parseDocument(filePath) {
             values.push(cell.text.replace(/\t|\n/g, ' '));
           });
           rows.push(`${index}\t${values.join('\t')}`);
+          const formattedCells = [];
+          for (let column = 1; column <= sheet.columnCount; column++) {
+            const cell = row.getCell(column);
+            if (cell.isMerged && cell.master.address !== cell.address) continue;
+            const merge = merges.get(cell.address);
+            const value = escapeHtml(cell.text).replace(/\n/g, '<br>');
+            formattedCells.push(
+              `<td${merge ? ` rowspan="${merge.rows}" colspan="${merge.columns}"` : ''}>${cell.font?.bold ? `<strong>${value}</strong>` : value}</td>`,
+            );
+          }
+          formattedRows.push(`<tr>${formattedCells.join('')}</tr>`);
         });
-        if (rows.length) sheets.push(`[工作表：${sheet.name}]\n${rows.join('\n')}`);
+        if (rows.length) {
+          sheets.push(`[工作表：${sheet.name}]\n${rows.join('\n')}`);
+          formattedSheets.push(
+            `<h2>${escapeHtml(sheet.name)}</h2><table><tbody>${formattedRows.join('')}</tbody></table>`,
+          );
+        }
       });
       content = sheets.join('\n\n');
+      preview = htmlPreview(formattedSheets.join('\n'), warnings);
       warnings.push('公式使用文件保存时的结果，不执行重新计算。');
     } else {
+      const { XMLParser } = await import('fast-xml-parser');
       const parser = new XMLParser({
         ignoreAttributes: false,
         parseTagValue: false,
@@ -195,24 +239,25 @@ export async function parseDocument(filePath) {
         })
         .join('\n\n');
     }
-    warnings.push('仅导入文字；图片、图表、附件和版式不参与分析。');
+    warnings.push(
+      '分析仅使用提取文字。格式预览保留可识别的标题、段落和表格，复杂分页、图表与浮动布局请对照原文件。',
+    );
   } else {
     content = decode(buffer);
     if (content.includes('\0')) throw new Error('文件不是可读取的纯文本。');
-    if (['html', 'htm'].includes(extension))
-      content = convert(content, {
-        wordwrap: false,
-        selectors: [
-          { selector: 'img', format: 'skip' },
-          { selector: 'a', options: { ignoreHref: true } },
-        ],
-      });
+    if (['html', 'htm'].includes(extension)) {
+      const { extractHtml } = await import('./html.mjs');
+      ({ content, preview } = extractHtml(content, warnings));
+    } else if (['md', 'markdown'].includes(extension)) preview = { format: 'markdown', content };
+    else if (['csv', 'tsv'].includes(extension))
+      preview = htmlPreview(delimitedPreview(content, extension === 'csv' ? ',' : '\t'), warnings);
   }
   return {
     name: path.basename(filePath),
     source: filePath,
     kind: extension,
     content: normalizeContent(content),
+    preview,
     warnings,
   };
 }

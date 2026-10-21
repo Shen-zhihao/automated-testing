@@ -1,0 +1,109 @@
+.commandPanel {
+  display: grid;
+  gap: 16px;
+}
+.commandCard {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-primary);
+  padding: 20px;
+  overflow: hidden;
+  > header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  footer {
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    margin-top: 15px;
+  }
+}
+.commandLine {
+  display: block;
+  background: var(--surface-secondary);
+  border-radius: 7px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--text-accent);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.commandReason {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  margin: 12px 0 6px;
+}
+.commandLocation {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+.commandError {
+  margin-top: 13px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.commandOutput {
+  margin-top: 15px;
+  padding: 18px;
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
+  border-radius: 8px;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.commandExit {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.commandStatus {
+  font-size: 11px;
+  padding: 5px 9px;
+  background: var(--surface-secondary);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  &.passed {
+    color: var(--success);
+    background: var(--surface-success);
+  }
+  &.pending {
+    color: var(--warning);
+    background: var(--surface-warning);
+  }
+  &.running {
+    color: var(--text-accent);
+    background: var(--surface-secondary);
+  }
+  &.blocked,
+  &.failed {
+    color: var(--danger);
+    background: var(--surface-danger);
+  }
+}
+.commandEmpty {
+  text-align: center;
+  padding: 55px 20px;
+  color: var(--text-secondary);
+  strong {
+    font-size: 16px;
+    font-weight: 500;
+  }
+  p {
+    font-size: 12px;
+    margin-top: 14px;
+    line-height: 1.8;
+  }
+}

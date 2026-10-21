@@ -1,0 +1,62 @@
+.analysisReport {
+  .reportHeading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+    h3 {
+      font-size: 16px;
+      color: var(--text-title);
+    }
+    p {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.8;
+      margin-top: 6px;
+    }
+  }
+  .reportToolbar,
+  .reportActions,
+  .reportViews {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .reportToolbar {
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 18px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .reportViews {
+    background: var(--surface-secondary);
+    padding: 4px;
+    border-radius: 9px;
+    button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+    button[aria-pressed='true'] {
+      background: var(--surface-primary);
+      color: var(--text-title);
+      box-shadow: 0 1px 3px var(--shadow-color);
+      font-weight: 600;
+    }
+  }
+  .workAlert {
+    overflow-wrap: anywhere;
+  }
+  .reportSource {
+    padding: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface-secondary);
+    border-radius: 10px;
+    max-height: 720px;
+    overflow: auto;
+  }
+}

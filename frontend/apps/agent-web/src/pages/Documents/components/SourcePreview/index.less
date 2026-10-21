@@ -1,0 +1,33 @@
+.sourcePreview {
+  .sourcePreviewModes {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .sourcePreviewModes [aria-pressed='true'] {
+    background: var(--surface-secondary);
+    color: var(--text-title);
+  }
+  iframe {
+    display: block;
+    width: 100%;
+    height: 680px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-primary);
+  }
+}
+.sourceFormatNotice {
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.sourceRefresh {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}

@@ -1,0 +1,137 @@
+.browserDataManager {
+  color: var(--text-primary);
+  button {
+    cursor: pointer;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-primary);
+    color: var(--text-primary);
+    padding: 7px 11px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  button:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .browserDataTabs {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    button {
+      border: 0;
+      padding: 8px 18px;
+      &[aria-selected='true'] {
+        background: var(--surface-secondary);
+        color: var(--text-title);
+      }
+      span {
+        margin-left: 6px;
+        color: var(--text-secondary);
+      }
+    }
+  }
+  .browserDataActions {
+    display: flex;
+    gap: 12px;
+    input {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+    }
+    .primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--on-accent);
+    }
+  }
+  .browserDataNotice,
+  .browserDataError,
+  .browserDataHint {
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+    padding: 9px 12px;
+    border-radius: 8px;
+  }
+  .browserDataNotice {
+    color: var(--success);
+    background: var(--surface-success);
+  }
+  .browserDataError {
+    color: var(--danger);
+    background: var(--surface-danger);
+  }
+  .browserDataHint {
+    color: var(--text-secondary);
+    background: var(--surface-secondary);
+  }
+  .browserDataList {
+    margin: 14px 0;
+    max-height: 340px;
+    overflow: auto;
+  }
+  .browserDataRow {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 13px 2px;
+    border-bottom: 1px solid var(--border-subtle);
+    .remove {
+      border: 0;
+      color: var(--text-secondary);
+    }
+  }
+  .browserDataSymbol {
+    font-size: 23px;
+    color: var(--text-secondary);
+  }
+  .browserDataText {
+    flex: 1;
+    min-width: 0;
+    strong {
+      font-size: 14px;
+      display: block;
+      overflow-wrap: anywhere;
+      font-weight: 500;
+    }
+    small {
+      display: block;
+      color: var(--text-secondary);
+      overflow-wrap: anywhere;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    em {
+      color: var(--success);
+      font-style: normal;
+      font-size: 11px;
+      margin-left: 9px;
+    }
+  }
+  .passwordMask {
+    margin-left: 14px;
+    letter-spacing: 2px;
+  }
+  .browserDataEmpty {
+    padding: 45px 12px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    text-align: center;
+  }
+  .browserImportHelp {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.8;
+    summary {
+      cursor: pointer;
+    }
+    p {
+      margin: 8px 0;
+    }
+  }
+}

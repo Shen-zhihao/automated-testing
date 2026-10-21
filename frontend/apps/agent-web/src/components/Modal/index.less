@@ -6,7 +6,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(17, 24, 39, 0.42);
+  background: var(--overlay);
   backdrop-filter: blur(3px);
   animation: modalFade 0.18s ease;
 }
@@ -18,10 +18,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--border-subtle);
   border-radius: 20px;
-  background: var(--bgColorBase, #fff);
-  box-shadow: 0 24px 72px rgba(15, 23, 42, 0.22);
+  background: var(--bgColorBase, var(--surface-primary));
+  box-shadow: 0 24px 72px var(--shadow-color);
   animation: modalPop 0.18s ease;
 }
 
@@ -44,7 +44,7 @@
   justify-content: space-between;
   gap: 20px;
   padding: 22px 24px 18px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .modalHeading {
@@ -53,7 +53,7 @@
 
 .modalTitle {
   margin: 0;
-  color: var(--textColorPrimary, #1f2937);
+  color: var(--textColorPrimary, var(--text-title));
   font-size: 18px;
   font-weight: 700;
   line-height: 1.4;
@@ -61,7 +61,7 @@
 
 .modalDescription {
   margin: 5px 0 0;
-  color: var(--textColorSecondary, #6b7280);
+  color: var(--textColorSecondary, var(--text-secondary));
   font-size: 12px;
   line-height: 1.6;
 }
@@ -73,15 +73,15 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  color: #6b7280;
-  background: #f3f4f6;
+  color: var(--text-secondary);
+  background: var(--surface-secondary);
   transition:
     color 0.15s ease,
     background 0.15s ease;
 
   &:hover:not(:disabled) {
-    color: #111827;
-    background: #e5e7eb;
+    color: var(--text-title);
+    background: var(--surface-tertiary);
   }
 
   &:disabled {
@@ -100,7 +100,7 @@
 .modalFooter {
   flex: 0 0 auto;
   padding: 16px 24px 20px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid var(--border-subtle);
 }
 
 @media (max-width: 640px) {

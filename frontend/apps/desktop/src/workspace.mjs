@@ -1,22 +1,91 @@
 import { analyzeDocument, complete } from './model.mjs';
+import { DEFAULT_PROJECT_ID } from './projects.mjs';
+import { ProjectFiles } from './project-files.mjs';
 
 export class WorkspaceService {
-  constructor({ store, settings, feishu, parseFile, notify = () => {}, fetchImpl }) {
-    Object.assign(this, { store, settings, feishu, parseFile, notify, fetchImpl });
+  constructor({
+    store,
+    settings,
+    feishu,
+    parseFile,
+    notify = () => {},
+    fetchImpl,
+    storage,
+    testing,
+    projectBrowser,
+  }) {
+    Object.assign(this, {
+      store,
+      settings,
+      feishu,
+      parseFile,
+      notify,
+      fetchImpl,
+      storage,
+      testing,
+    });
     this.jobs = new Map();
     this.controllers = new Map();
     this.importing = false;
+    this.refreshingId = null;
+    this.projectLocks = new Set();
+    this.projectOperations = new Map();
+    this.projectFiles = new ProjectFiles(this, projectBrowser);
   }
-  snapshot() {
+  async runProject(projectId, operation) {
+    this.store.projects.get(projectId);
+    if (this.projectLocks.has(projectId)) throw new Error('工程正在清理，请稍后再试。');
+    this.projectOperations.set(projectId, (this.projectOperations.get(projectId) || 0) + 1);
+    try {
+      return await operation();
+    } finally {
+      const count = this.projectOperations.get(projectId) - 1;
+      if (count) this.projectOperations.set(projectId, count);
+      else this.projectOperations.delete(projectId);
+    }
+  }
+  assertProjectIdle(projectId) {
+    this.store.projects.get(projectId);
+    if (
+      this.projectLocks.has(projectId) ||
+      this.projectOperations.has(projectId) ||
+      this.importing ||
+      this.terminal?.running.has(projectId) ||
+      [...(this.terminal?.reviews.values() || [])].some((review) => review.projectId === projectId)
+    )
+      throw new Error('请等待当前工程的导入、保存或其他操作完成后再清理。');
+    const docs = new Set(this.store.listDocuments(projectId).map((doc) => doc.id));
+    const jobs = this.testing?.snapshot(projectId).testJobs || {};
+    if (
+      [...this.controllers.keys()].some((id) => docs.has(id)) ||
+      Object.values(jobs).some((job) => job.status === 'running')
+    )
+      throw new Error('工程有运行中的分析、对话或测试，请先停止或等待完成。');
+  }
+  snapshot(projectId) {
+    const projects = this.store.projects.list();
+    projectId ??= projects[0]?.id || null;
+    if (projectId) this.store.projects.get(projectId);
+    const documents = projectId ? this.store.listDocuments(projectId) : [];
+    const documentIds = new Set(documents.map((document) => document.id));
     return {
+      projects,
+      activeProjectId: projectId,
       settings: this.settings.public(),
-      documents: this.store.listDocuments(),
-      jobs: Object.fromEntries(this.jobs),
+      documents,
+      jobs: Object.fromEntries([...this.jobs].filter(([id]) => documentIds.has(id))),
       importing: this.importing,
       feishu: this.feishu.status(),
+      storage: this.storage?.info(),
+      ...(this.testing?.snapshot(projectId) || {
+        testSessions: [],
+        testTasks: [],
+        testJobs: {},
+      }),
     };
   }
-  async importFiles(paths) {
+  async importFiles(paths, projectId = DEFAULT_PROJECT_ID) {
+    this.store.projects.get(projectId);
     if (this.importing) throw new Error('正在导入，请稍候。');
     if (paths.length > 10) throw new Error('每次最多导入 10 个文件。');
     this.importing = true;
@@ -26,7 +95,7 @@ export class WorkspaceService {
     try {
       for (const file of paths) {
         try {
-          imported.push(this.store.addDocument(await this.parseFile(file)).id);
+          imported.push(this.store.addDocument({ ...(await this.parseFile(file)), projectId }).id);
         } catch (error) {
           errors.push({ name: file.split(/[\\/]/).pop(), message: error.message });
         }
@@ -38,12 +107,13 @@ export class WorkspaceService {
       this.notify();
     }
   }
-  async importFeishu(url) {
+  async importFeishu(url, projectId = DEFAULT_PROJECT_ID) {
+    this.store.projects.get(projectId);
     if (this.importing) throw new Error('正在导入，请稍候。');
     this.importing = true;
     this.notify();
     try {
-      return this.store.addDocument(await this.feishu.read(url)).id;
+      return this.store.addDocument({ ...(await this.feishu.read(url)), projectId }).id;
     } finally {
       this.importing = false;
       this.notify();
@@ -57,7 +127,28 @@ export class WorkspaceService {
     });
     return `连接成功，模型 ${config.model} 已返回文本。`;
   }
+  async refreshDocument(id) {
+    if (this.importing || this.controllers.has(id)) throw new Error('请等待导入或分析完成后重试。');
+    const previous = this.store.getDocument(id);
+    this.importing = true;
+    this.refreshingId = id;
+    this.notify();
+    try {
+      const source =
+        previous.kind === 'feishu'
+          ? await this.feishu.read(previous.source)
+          : await this.parseFile(previous.source);
+      const updated = this.store.updateDocumentSource(id, source);
+      if (updated.content !== previous.content) this.jobs.delete(id);
+      return { document: updated, contentChanged: updated.content !== previous.content };
+    } finally {
+      this.importing = false;
+      this.refreshingId = null;
+      this.notify();
+    }
+  }
   async analyze(id, goal) {
+    if (this.refreshingId === id) throw new Error('正在重新提取原文，请完成后再分析。');
     if (this.controllers.has(id)) throw new Error('此文档正在分析。');
     if (this.controllers.size >= 2) throw new Error('同时最多分析两份文档，请等待已有任务完成。');
     const document = this.store.getDocument(id);
@@ -67,7 +158,7 @@ export class WorkspaceService {
       this.jobs.set(id, { status, message });
       this.notify();
     };
-    update('running', '正在准备分析');
+    update('running', '正在准备拆分需求');
     try {
       const config = await this.settings.modelConfig();
       const analysis = await analyzeDocument(document, goal, config, {
@@ -77,7 +168,7 @@ export class WorkspaceService {
       });
       controller.signal.throwIfAborted();
       this.store.saveAnalysis(id, analysis);
-      update('complete', '分析完成，已保存到本机');
+      update('complete', '实施与验收文档已生成，已保存到本机，可另存为 Markdown');
       return analysis;
     } catch (error) {
       const message = controller.signal.aborted ? '分析已取消，原有分析结果保留。' : error.message;
@@ -92,12 +183,14 @@ export class WorkspaceService {
     this.controllers.get(id)?.abort();
   }
   remove(id) {
+    if (this.refreshingId === id) throw new Error('正在重新提取原文，请完成后再移除。');
     if (this.controllers.has(id)) throw new Error('请先取消正在进行的分析。');
     this.store.deleteDocument(id);
     this.jobs.delete(id);
     this.notify();
   }
   cancelAll() {
+    this.testing?.close();
     for (const controller of this.controllers.values()) controller.abort();
   }
 }

@@ -93,10 +93,11 @@ export default function FeishuSettings() {
                 value={form.appSecret}
                 maxLength={8000}
                 autoComplete="new-password"
-                placeholder={hasSavedSecret ? '已加密保存，留空保留' : '填写自建应用的 App Secret'}
+                placeholder={hasSavedSecret ? '********' : '填写自建应用的 App Secret'}
                 required={!hasSavedSecret}
                 onChange={(event) => update({ ...form, appSecret: event.target.value })}
               />
+              {hasSavedSecret && <small>已保存，留空保留现有 App Secret。</small>}
             </label>
           </div>
           <div className="settingsActions">

@@ -1,0 +1,400 @@
+.testingPage {
+  color: var(--text-title);
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 8px 4px 28px;
+}
+.testHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 22px;
+  h1 {
+    font-size: 26px;
+    line-height: 1.5;
+  }
+  p {
+    color: var(--text-secondary);
+    margin-top: 7px;
+    line-height: 1.7;
+  }
+}
+.testActions {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.testButton {
+  padding: 9px 14px;
+  background: var(--surface-primary);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  &:hover {
+    background: var(--surface-secondary);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  &.primary {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+  }
+}
+.testLink {
+  color: var(--text-accent);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.testCard {
+  background: var(--surface-primary);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  margin-bottom: 18px;
+  min-width: 0;
+  h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+  }
+  h3 {
+    font-size: 15px;
+    margin: 14px 0 8px;
+  }
+  p {
+    line-height: 1.75;
+  }
+}
+.testingForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .fullWidth {
+    grid-column: 1/-1;
+  }
+  input,
+  select,
+  textarea {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    background: var(--surface-primary);
+    color: var(--text-title);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font: inherit;
+  }
+  textarea {
+    resize: vertical;
+    line-height: 1.7;
+  }
+  .testCheck {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    input {
+      width: auto;
+    }
+  }
+}
+.testError,
+.testNotice,
+.testJob {
+  margin: 12px 0;
+  padding: 11px 14px;
+  border-radius: 8px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+.testError,
+.testJob.error {
+  background: var(--surface-danger);
+  color: var(--danger);
+}
+.testNotice,
+.testJob.complete {
+  background: var(--surface-success);
+  color: var(--success);
+}
+.testJob.running {
+  background: var(--surface-secondary);
+  color: var(--text-accent);
+}
+.testMuted {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.testTag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--surface-secondary);
+  margin: 0 6px 4px 0;
+}
+.testTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 18px 0;
+  border-bottom: 1px solid var(--border);
+  button {
+    padding: 12px 17px;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    &[aria-pressed='true'] {
+      color: var(--text-title);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+  }
+}
+.testList {
+  display: grid;
+  gap: 12px;
+}
+.testTaskRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-primary);
+  h2 {
+    font-size: 17px;
+  }
+  p {
+    margin: 8px 0;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+}
+.testCase {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+  summary {
+    cursor: pointer;
+    line-height: 1.7;
+  }
+  ol {
+    padding-left: 23px;
+    list-style: decimal;
+    line-height: 1.8;
+  }
+  .testCheck {
+    display: flex;
+    gap: 9px;
+    align-items: flex-start;
+    input {
+      margin-top: 5px;
+    }
+  }
+}
+.testPlanStep {
+  margin: 9px 0;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  small {
+    display: block;
+    color: var(--text-secondary);
+  }
+}
+.testRun {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  summary {
+    cursor: pointer;
+    line-height: 1.7;
+  }
+  .stepFailed {
+    color: var(--danger);
+  }
+  .stepPassed {
+    color: var(--success);
+  }
+}
+.testColumns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+}
+.connectedChat {
+  .conversationItem {
+    margin-bottom: 8px;
+  }
+  .messageBubble {
+    padding-bottom: 16px;
+  }
+  .messageEvidence {
+    font-size: 12px;
+    line-height: 1.7;
+    margin-top: 15px;
+    color: var(--text-secondary);
+    summary {
+      cursor: pointer;
+    }
+    p {
+      white-space: pre-wrap;
+      max-height: 260px;
+      overflow: auto;
+      margin: 7px 0 16px;
+    }
+  }
+  .keepMessage {
+    margin-top: 13px;
+  }
+  .chatTaskTarget {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin: 0 0 9px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    select {
+      padding: 5px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      max-width: 230px;
+      margin-left: 5px;
+    }
+  }
+  .chatQuickActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 10px;
+    button {
+      padding: 5px 8px;
+      font-size: 12px;
+      color: var(--text-primary);
+      background: var(--surface-tertiary);
+      border-radius: 6px;
+    }
+  }
+  .testingForm {
+    grid-template-columns: 1fr;
+  }
+  .testJob {
+    padding: 5px 9px;
+    font-size: 12px;
+  }
+  .conversationPanel {
+    width: 245px;
+  }
+}
+@media (max-width: 900px) {
+  .testColumns {
+    grid-template-columns: 1fr;
+  }
+  .connectedChat {
+    .conversationPanel {
+      position: static;
+      transform: none;
+      visibility: visible;
+      width: 190px;
+      padding: 13px;
+    }
+    .chatTitle {
+      font-size: 18px;
+    }
+    .chatHeader {
+      padding: 16px;
+    }
+    .composer {
+      padding: 10px 15px;
+    }
+  }
+}
+@media (max-width: 650px) {
+  .testingForm {
+    grid-template-columns: 1fr;
+  }
+  .testCard {
+    padding: 16px;
+  }
+  .connectedChat {
+    flex-direction: column;
+    .conversationPanel {
+      width: 100%;
+      max-height: 180px;
+    }
+    .conversationFooter {
+      display: none;
+    }
+    .conversationSection {
+      overflow: auto;
+    }
+  }
+}
+
+.taskFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 25px 0 10px;
+  button {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 10px 13px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    span {
+      font-size: 10px;
+      opacity: 0.8;
+    }
+    &[aria-pressed='true'] {
+      background: var(--surface-secondary);
+      border-color: var(--border);
+      color: var(--text-accent);
+    }
+  }
+}
+.testHeading h1 {
+  font-weight: 600;
+  font-size: 25px;
+}
+.testHeading p {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.testTaskRow {
+  padding: 23px;
+  h2 {
+    font-size: 16px;
+    font-weight: 550;
+    color: var(--text-primary);
+  }
+  p {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+}

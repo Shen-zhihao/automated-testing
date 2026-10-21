@@ -1,3 +1,4 @@
 export * from './types';
-export { createPrototypeClient, prototypeApi } from './prototype';
+export { skillTemplates } from './skills';
 export type * from './desktop';
+export type * from './testing';

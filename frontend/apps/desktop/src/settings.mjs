@@ -45,8 +45,8 @@ export function validateModel(input) {
   if (!['chat-completions', 'responses'].includes(input.format)) throw new Error('接口格式无效。');
   if (!['max_tokens', 'max_completion_tokens'].includes(input.tokenParameter))
     throw new Error('输出参数无效。');
-  if (!Number.isInteger(input.maxTokens) || input.maxTokens < 512 || input.maxTokens > 32768)
-    throw new Error('最大输出 Token 需在 512–32768 之间。');
+  if (!Number.isInteger(input.maxTokens) || input.maxTokens < 512 || input.maxTokens > 393216)
+    throw new Error('最大输出 Token 需在 512–393216 之间，并且不超过所选模型的输出上限。');
   if (
     !Number.isInteger(input.timeoutSeconds) ||
     input.timeoutSeconds < 15 ||

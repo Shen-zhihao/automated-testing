@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import type { Skill } from '@project/shared-api';
-import { usePrototype } from '@/hooks/usePrototype';
+import { skillTemplates } from '@project/shared-api';
 import SkillDetail from './SkillDetail';
 import './index.less';
 
 export default function SkillCenter() {
-  const { skills } = usePrototype();
+  const skills = skillTemplates;
   const [keyword, setKeyword] = useState('');
   const [activeSkill, setActiveSkill] = useState<Skill | null>(null);
   const filteredSkills = skills.filter((skill) =>

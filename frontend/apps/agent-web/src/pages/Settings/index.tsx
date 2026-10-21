@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { SettingsInput } from '@project/shared-api';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import AppearanceSettings from '@/components/AppearanceSettings';
 import DesktopRequired from '@/components/DesktopRequired';
 import FeishuSettings from './components/FeishuSettings';
+import StorageSettings from './components/StorageSettings';
 import './index.less';
+
+const outputTokenOptions = [
+  512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 393216,
+];
 
 export default function SettingsPage() {
   const { state, error: workspaceError, refresh } = useWorkspace();
@@ -50,7 +56,7 @@ export default function SettingsPage() {
         <div>
           <div className="workEyebrow">偏好设置</div>
           <h1>设置</h1>
-          <p>配置分析模型，连接你的飞书。所有配置仅保存在这台电脑。</p>
+          <p>管理界面外观、分析模型、飞书连接和本机数据。设置仅保存在这台电脑。</p>
         </div>
         <span className="workPill">本机配置</span>
       </header>
@@ -64,6 +70,7 @@ export default function SettingsPage() {
           {message}
         </div>
       )}
+      <AppearanceSettings />
       <section className="settingsCard">
         <div className="settingsTitle">
           <div>
@@ -117,10 +124,17 @@ export default function SettingsPage() {
                   setForm({ ...form, apiKey: event.target.value, clearApiKey: false })
                 }
                 placeholder={
-                  state.settings.hasApiKey ? '已加密保存；留空保留现有 Key' : '本地免鉴权模型可留空'
+                  state.settings.hasApiKey &&
+                  !form.clearApiKey &&
+                  form.model.baseUrl === state.settings.model.baseUrl
+                    ? '********'
+                    : '本地免鉴权模型可留空'
                 }
               />
-              <small>使用系统安全存储加密，保存后不回显。更换服务地址时须重新填写 Key。</small>
+              <small>
+                {state.settings.hasApiKey && !form.clearApiKey ? '已保存，留空保留现有 Key。' : ''}
+                使用系统安全存储加密。更换服务地址时须重新填写 Key。
+              </small>
             </label>
             {state.settings.hasApiKey && (
               <label className="wide inlineCheck">
@@ -136,14 +150,26 @@ export default function SettingsPage() {
             )}
             <label>
               最大输出 Token
-              <input
-                type="number"
-                min={512}
-                max={32768}
-                step={512}
+              <select
                 value={form.model.maxTokens}
                 onChange={(event) => change('maxTokens', Number(event.target.value))}
-              />
+              >
+                {!outputTokenOptions.includes(form.model.maxTokens) && (
+                  <option value={form.model.maxTokens}>
+                    {form.model.maxTokens.toLocaleString()} Token（已保存）
+                  </option>
+                )}
+                {outputTokenOptions.map((tokens) => (
+                  <option key={tokens} value={tokens}>
+                    {tokens >= 1024 ? `${tokens / 1024}K` : tokens}（{tokens.toLocaleString()}{' '}
+                    Token）
+                  </option>
+                ))}
+              </select>
+              <small>
+                限制单次回复长度，不是上下文容量。请按模型支持的输出上限选择；1M 上下文不代表能输出
+                1M。
+              </small>
             </label>
             <label>
               请求超时（秒）
@@ -218,13 +244,7 @@ export default function SettingsPage() {
         </div>
       </section>
       <FeishuSettings />
-      <section className="settingsCard compact">
-        <h2>本地数据</h2>
-        <p>
-          导入的文字、分析结果和设置保存在本机 SQLite
-          中，重启后保留。原始文件不会修改。只有点击「分析文档」时，才向已配置的模型服务发送文档内容。
-        </p>
-      </section>
+      <StorageSettings />
     </div>
   );
 }

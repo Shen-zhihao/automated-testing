@@ -1,0 +1,89 @@
+.lightPalette() {
+  --surface-app: #f8f9fc;
+  --surface-sidebar: #f0f2f7;
+  --surface-primary: #ffffff;
+  --surface-secondary: #f7f9fc;
+  --surface-tertiary: #edf1f7;
+  --surface-accent: #e8edf9;
+  --surface-success: #edf8f2;
+  --surface-warning: #fff8ea;
+  --surface-danger: #fff1f1;
+  --surface-violet: #f3eef8;
+  --border: #dce3ee;
+  --border-subtle: #e9edf4;
+  --border-strong: #bcc8db;
+  --border-success: #c9e9da;
+  --border-warning: #ead6aa;
+  --border-danger: #ecced0;
+  --text-title: #1d2940;
+  --text-primary: #35445e;
+  --text-secondary: #5e6e86;
+  --text-muted: #63738a;
+  --text-accent: #4c61ac;
+  --text-violet: #80639f;
+  --accent: #5264b8;
+  --accent-hover: #4356a3;
+  --on-accent: #ffffff;
+  --success: #267450;
+  --warning: #936820;
+  --danger: #b3424d;
+  --mark-green: #74aa96;
+  --mark-amber: #bea170;
+  --mark-violet: #ac91c4;
+  --overlay: rgba(17, 24, 39, 0.42);
+  --shadow-color: rgba(24, 37, 59, 0.12);
+  --terminal-bg: #202b42;
+  --terminal-text: #d5ddf0;
+}
+.darkPalette() {
+  --surface-app: #10151f;
+  --surface-sidebar: #141c29;
+  --surface-primary: #1a2433;
+  --surface-secondary: #202d3e;
+  --surface-tertiary: #27364b;
+  --surface-accent: #2a3757;
+  --surface-success: #1c3a31;
+  --surface-warning: #3c3220;
+  --surface-danger: #40272f;
+  --surface-violet: #342c48;
+  --border: #35465e;
+  --border-subtle: #2b3a50;
+  --border-strong: #526681;
+  --border-success: #34634f;
+  --border-warning: #6c5935;
+  --border-danger: #75424d;
+  --text-title: #f0f4fc;
+  --text-primary: #dbe4f2;
+  --text-secondary: #b0bfd4;
+  --text-muted: #91a3bd;
+  --text-accent: #b0c2ff;
+  --text-violet: #c8b1e7;
+  --accent: #8398ed;
+  --accent-hover: #9caff8;
+  --on-accent: #101b37;
+  --success: #86d6b2;
+  --warning: #edca85;
+  --danger: #f6a5af;
+  --mark-green: #80bca5;
+  --mark-amber: #d2b47d;
+  --mark-violet: #bca1d5;
+  --overlay: rgba(0, 0, 0, 0.64);
+  --shadow-color: rgba(0, 0, 0, 0.32);
+  --terminal-bg: #0e1522;
+  --terminal-text: #d9e3f4;
+}
+:root {
+  .lightPalette();
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  .darkPalette();
+  color-scheme: dark;
+}
+// Covers first paint before the persisted/native preference has been read.
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    .darkPalette();
+    color-scheme: dark;
+  }
+}

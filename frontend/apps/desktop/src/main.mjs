@@ -1,15 +1,30 @@
-import { app, BrowserWindow, dialog, Menu, net, protocol, session, safeStorage } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  Menu,
+  net,
+  protocol,
+  session,
+  safeStorage,
+  nativeTheme,
+} from 'electron';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APP_URL, DEV_URL, isAppNavigation, resolveUiResource } from './resources.mjs';
-import { WorkspaceStore } from './store.mjs';
+import { AppearanceService, windowBackground } from './appearance.mjs';
+import { StorageService } from './storage.mjs';
 import { SettingsService } from './settings.mjs';
 import { WorkspaceService } from './workspace.mjs';
 import { FeishuService } from './feishu.mjs';
 import { parseInWorker } from './documents/import.mjs';
 import { registerWorkspaceHandlers } from './ipc.mjs';
 import { APP_DISPLAY_NAME, applicationMenuTemplate } from './menu.mjs';
+import { TestingService } from './testing/service.mjs';
+import { TerminalService } from './terminal/service.mjs';
+import { TestBrowser } from './testing/browser.mjs';
+import { projectBrowserStorage, purgeDeletedProfiles } from './testing/browser-storage.mjs';
 
 const development = !app.isPackaged && process.argv.includes('--dev');
 const sourceRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -23,6 +38,7 @@ app.setPath(
   'userData',
   path.join(app.getPath('appData'), development ? 'Test Agent Development' : 'Test Agent'),
 );
+app.setPath('sessionData', app.getPath('userData'));
 protocol.registerSchemesAsPrivileged([
   { scheme: 'test-agent', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
@@ -36,6 +52,8 @@ const fail = (error) => {
   app.exit(1);
 };
 
+let appearance;
+
 async function createWindow() {
   const window = new BrowserWindow({
     title: APP_DISPLAY_NAME,
@@ -43,10 +61,13 @@ async function createWindow() {
     height: 840,
     minWidth: 780,
     minHeight: 600,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: windowBackground(appearance.public().theme),
     show: false,
     webPreferences: {
       preload: path.join(sourceRoot, 'preload.cjs'),
+      additionalArguments: [
+        `--test-agent-appearance=${appearance.public().mode}:${appearance.public().theme}`,
+      ],
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -82,14 +103,40 @@ if (!['darwin', 'win32'].includes(process.platform)) {
   app
     .whenReady()
     .then(async () => {
-      const store = new WorkspaceStore(
-        path.join(app.getPath('userData'), 'storage', 'test-agent.sqlite'),
-      );
-      const notify = () => {
-        for (const window of BrowserWindow.getAllWindows()) {
-          if (!window.webContents.isDestroyed()) window.webContents.send('workspace:changed');
-        }
+      let quitting = false;
+      const pendingNotifications = new Map();
+      const broadcast = (channel) => {
+        if (quitting || pendingNotifications.has(channel)) return;
+        pendingNotifications.set(
+          channel,
+          setTimeout(() => {
+            pendingNotifications.delete(channel);
+            for (const window of BrowserWindow.getAllWindows()) {
+              if (!window.webContents.isDestroyed()) window.webContents.send(channel);
+            }
+          }, 32),
+        );
       };
+      const notify = () => broadcast('workspace:changed');
+      const notifyBrowser = () => broadcast('workspace:browser-changed');
+      const storage = new StorageService(app.getPath('userData'), {
+        notify,
+        forbiddenRoots: app.isPackaged
+          ? [process.resourcesPath]
+          : [path.resolve(sourceRoot, '../../../..')],
+      });
+      const store = storage.store;
+      let workspace;
+      appearance = new AppearanceService(store, nativeTheme, {
+        onChanged: ({ theme }) => {
+          for (const window of BrowserWindow.getAllWindows())
+            window.setBackgroundColor(windowBackground(theme));
+          for (const browser of workspace?.testing?.browsers.values() || [])
+            browser.updateAppearance?.();
+          broadcast('workspace:appearance-changed');
+        },
+      });
+      await purgeDeletedProfiles(store, app.getPath('sessionData'));
       const settings = new SettingsService(store, {
         encrypt: async (value) => {
           if (!(await safeStorage.isAsyncEncryptionAvailable()))
@@ -99,21 +146,72 @@ if (!['darwin', 'win32'].includes(process.platform)) {
         decrypt: async (value) => (await safeStorage.decryptStringAsync(value)).result,
       });
       const feishu = new FeishuService(settings, { notify });
-      const workspace = new WorkspaceService({
+      const downloads = new Set();
+      const testing = new TestingService({
+        store,
+        settings,
+        notify,
+        browserFactory: (url, options) =>
+          new TestBrowser(url, {
+            ...options,
+            onDownload: (item, projectId, browser) => {
+              const work = () =>
+                workspace.runProject(projectId, async () => {
+                  const download = await new Promise((resolve) =>
+                    item.once('done', (_, state) => resolve({ state, file: item.getSavePath() })),
+                  );
+                  if (download.file) {
+                    try {
+                      await access(download.file);
+                      await workspace.projectFiles.record(projectId, download.file);
+                    } catch (error) {
+                      if (error.code !== 'ENOENT') throw error;
+                    }
+                  }
+                });
+              const pending = storage
+                .run(work)
+                .catch(() => {
+                  item.cancel();
+                  browser.error = '下载记录保存失败，请在保存位置检查文件。';
+                  browser.onChanged();
+                })
+                .finally(() => downloads.delete(pending));
+              downloads.add(pending);
+            },
+          }),
+        notifyBrowser,
+      });
+      workspace = new WorkspaceService({
         store,
         settings,
         feishu,
         parseFile: parseInWorker,
         notify,
+        storage,
+        testing,
+        projectBrowser: projectBrowserStorage,
       });
+      workspace.appearance = appearance;
+      workspace.terminal = new TerminalService(workspace, {
+        root: path.join(app.getPath('userData'), 'projects'),
+      });
+      testing.terminal = workspace.terminal;
       registerWorkspaceHandlers(workspace, development);
-      let quitting = false;
       app.on('before-quit', (event) => {
         if (quitting) return;
         event.preventDefault();
         quitting = true;
+        for (const timer of pendingNotifications.values()) clearTimeout(timer);
+        pendingNotifications.clear();
+        appearance.close();
         workspace.cancelAll();
-        void feishu.close().finally(() => app.quit());
+        void Promise.allSettled([
+          feishu.close(),
+          storage.pending,
+          workspace.terminal.close(),
+          ...downloads,
+        ]).finally(() => app.quit());
       });
       process.on('SIGINT', () => app.quit());
       process.on('SIGTERM', () => app.quit());

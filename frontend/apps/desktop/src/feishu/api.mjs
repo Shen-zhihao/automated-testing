@@ -82,7 +82,7 @@ export class FeishuApi {
   get(resource, accessToken, signal) {
     // 应用令牌只发往固定的官方只读接口，不发往文档分享域名。
     if (
-      !/^\/(?:docx\/v1\/documents\/[A-Za-z0-9]+(?:\/raw_content)?|wiki\/v2\/spaces\/get_node\?token=[A-Za-z0-9]+&obj_type=wiki)$/.test(
+      !/^\/(?:docx\/v1\/documents\/[A-Za-z0-9]+(?:\/raw_content|\/blocks\?page_size=500&document_revision_id=(?:-1|\d+)(?:&page_token=[A-Za-z0-9%_.~!\-]+)?)?|wiki\/v2\/spaces\/get_node\?token=[A-Za-z0-9]+&obj_type=wiki)$/.test(
         resource,
       )
     )

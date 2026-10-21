@@ -1,16 +1,20 @@
+import { useProject } from '@/hooks/useProject';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { WorkspaceDocument } from '@project/shared-api';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import DesktopRequired from '@/components/DesktopRequired';
-import MarkdownContent from '@/components/MarkdownContent';
+import SourcePreview from './components/SourcePreview';
+import AnalysisReport from './components/AnalysisReport';
 import './index.less';
 
 export default function DocumentsPage() {
+  const { api } = useProject();
+  const [params] = useSearchParams();
   const { state, error: workspaceError, refresh } = useWorkspace();
-  const [activeId, setActiveId] = useState('');
+  const [activeId, setActiveId] = useState(params.get('document') || '');
   const [document, setDocument] = useState<WorkspaceDocument | null>(null);
   const [tab, setTab] = useState<'analysis' | 'source'>('source');
   const [goal, setGoal] = useState('');
@@ -33,7 +37,7 @@ export default function DocumentsPage() {
     setGoal('');
     setError('');
     if (activeId)
-      void window.desktop
+      void api
         ?.getDocument(activeId)
         .then((value) => {
           if (!disposed) {
@@ -49,9 +53,9 @@ export default function DocumentsPage() {
       disposed = true;
     };
   }, [activeId, selected?.updatedAt]);
-  if (!window.desktop) return <DesktopRequired />;
+  if (!api) return <DesktopRequired />;
   if (!state) return <div className="workEmpty">{workspaceError || '正在读取本机文档…'}</div>;
-  const desktop = window.desktop;
+  const desktop = api;
   const job = state.jobs[activeId];
   const running = job?.status === 'running';
   const importing = state.importing || busy === 'files' || busy === 'link';
@@ -95,9 +99,9 @@ export default function DocumentsPage() {
     <div className="documentsPage workPage">
       <header className="workHeading">
         <div>
-          <div className="workEyebrow">文档理解</div>
-          <h1>从文档到测试思路</h1>
-          <p>导入需求，理解规则，梳理值得验证的场景。</p>
+          <div className="workEyebrow">工程需求资料</div>
+          <h1>需求分析</h1>
+          <p>按功能拆分实现步骤和验收标准，预览并保存 Markdown 文档。</p>
         </div>
         <div className="headingActions">
           <button className="workButton" disabled={importing} onClick={openFeishuImport}>
@@ -125,7 +129,7 @@ export default function DocumentsPage() {
       <div className="documentsGrid">
         <aside className="documentLibrary">
           <div className="libraryHeading">
-            <h2>文档库</h2>
+            <h2>工程文档</h2>
             <span>{state.documents.length}</span>
           </div>
           <input
@@ -149,10 +153,10 @@ export default function DocumentsPage() {
                 <span>
                   {item.characters.toLocaleString()} 字符 ·{' '}
                   {state.jobs[item.id]?.status === 'running'
-                    ? '分析中'
+                    ? '生成中'
                     : item.analyzed
-                      ? '已分析'
-                      : '待分析'}
+                      ? '已有文档'
+                      : '待生成'}
                 </span>
               </button>
             ))}
@@ -174,14 +178,14 @@ export default function DocumentsPage() {
               <p>
                 选择一个文档，或粘贴飞书链接。
                 <br />
-                先核对提取的文字，再让模型分析功能、边界与测试点。
+                先核对原文，再生成逐项对应的功能实现步骤与验收标准。
               </p>
               <div className="welcomeSteps">
                 <span>01 导入资料</span>
                 <span className={modelConfigured ? 'complete' : undefined}>
                   {modelConfigured ? '02 模型已配置' : '02 配置模型'}
                 </span>
-                <span>03 分析测试点</span>
+                <span>03 生成并保存文档</span>
               </div>
               <div className="welcomeNextStep">
                 <p className="welcomeModelStatus" role="status">
@@ -234,17 +238,26 @@ export default function DocumentsPage() {
               )}
               <div className="analysisControls">
                 <label htmlFor="analysis-goal">
-                  分析重点 <span>可选</span>
+                  补充要求 <span>可选</span>
                 </label>
                 <textarea
                   id="analysis-goal"
-                  placeholder="例如：重点检查登录规则、异常分支和验收标准是否完整"
+                  placeholder={
+                    ['html', 'htm'].includes(document.kind)
+                      ? '例如：梳理完整流程、关键交互和失败恢复，给出可以自动化的测试场景'
+                      : '例如：按前端交互和业务规则拆分，重点补充权限、异常分支及边界验收条件'
+                  }
                   rows={2}
                   maxLength={4000}
                   value={goal}
                   disabled={running}
                   onChange={(event) => setGoal(event.target.value)}
                 />
+                <p className="analysisScope">
+                  {['html', 'htm'].includes(document.kind)
+                    ? 'HTML 原型还会梳理完整流程、关键交互、错误处理与测试实施方向，并区分演示行为和真实能力。'
+                    : '输出包含功能清单、实现步骤、验收标准、实施顺序与待确认问题；每项对应原文依据。'}
+                </p>
                 <div className="analysisActions">
                   <div>
                     {modelConfigured ? (
@@ -261,12 +274,12 @@ export default function DocumentsPage() {
                       className="workButton"
                       onClick={() => void action('cancel', () => desktop.cancelAnalysis(activeId))}
                     >
-                      取消分析
+                      取消生成
                     </button>
                   ) : (
                     <button
                       className="workButton primary"
-                      disabled={!modelConfigured || Boolean(busy)}
+                      disabled={!modelConfigured || importing || Boolean(busy)}
                       onClick={() => {
                         setTab('analysis');
                         void action('analyze', async () => {
@@ -274,7 +287,9 @@ export default function DocumentsPage() {
                         });
                       }}
                     >
-                      分析文档
+                      {document.analysis?.kind === 'implementation-plan'
+                        ? '重新生成文档'
+                        : '生成实施与验收文档'}
                     </button>
                   )}
                 </div>
@@ -301,45 +316,57 @@ export default function DocumentsPage() {
                   aria-selected={tab === 'analysis'}
                   onClick={() => setTab('analysis')}
                 >
-                  分析结果
+                  实施与验收
                 </button>
               </div>
               <div className="documentBody" role="tabpanel">
                 {tab === 'source' ? (
                   <>
-                    <div className="documentMeta">
-                      {document.content.length.toLocaleString()} 字符 · 请核对表格、换行与关键规则
-                    </div>
-                    <pre>{document.content}</pre>
-                  </>
-                ) : document.analysis ? (
-                  <>
-                    <div className="analysisResultMeta">
-                      <span>
-                        {new Date(document.analysis.createdAt).toLocaleString('zh-CN')} ·{' '}
-                        {document.analysis.model} · {document.analysis.segments} 段
+                    <div className="sourceRefresh">
+                      <span className="documentMeta">
+                        {document.content.length.toLocaleString()} 字符 · 分析使用提取后的文字
                       </span>
                       <button
                         className="workButton subtle"
+                        disabled={running || importing || Boolean(busy)}
                         onClick={() =>
-                          void action('copy', async () => {
-                            await navigator.clipboard.writeText(document.analysis!.content);
-                            setNotice('分析结果已复制。');
+                          void action('refresh-source', async () => {
+                            const result = await desktop.refreshDocument(activeId);
+                            setDocument(result.document);
+                            setNotice(
+                              result.contentChanged
+                                ? '已重新提取，原文内容有变化，请重新分析。'
+                                : '原文格式已更新，文字内容未变化。',
+                            );
                           })
                         }
                       >
-                        复制结果
+                        {busy === 'refresh-source' ? '正在重新提取…' : '重新提取格式'}
                       </button>
                     </div>
-                    {running && (
-                      <p className="documentMeta">正在重新分析，以下为上次保存的结果。</p>
-                    )}
-                    <MarkdownContent>{document.analysis.content}</MarkdownContent>
+                    {!document.preview &&
+                      !['txt', 'json', 'md', 'markdown'].includes(document.kind) && (
+                        <p className="sourceFormatNotice">
+                          当前为纯文字预览。飞书、Word、HTML
+                          和表格文档可点击「重新提取格式」；需要原文件或可访问的飞书链接。PDF
+                          和幻灯片暂保留文字与页码。
+                        </p>
+                      )}
+                    <SourcePreview key={document.id} document={document} />
                   </>
+                ) : document.analysis ? (
+                  <AnalysisReport
+                    key={`${document.id}:${document.analysis.createdAt}`}
+                    document={document}
+                    running={running}
+                  />
                 ) : (
                   <div className="resultEmpty">
-                    <h3>{running ? '正在阅读文档并整理分析…' : '尚未分析这份文档'}</h3>
-                    <p>分析将包括内容摘要、业务规则、测试场景、边界异常与待确认问题。</p>
+                    <h3>
+                      {running ? '正在拆分功能并编写验收标准…' : '将需求变成可实施、可验收的文档'}
+                    </h3>
+                    <p>点击「生成实施与验收文档」，按功能输出实现步骤与验收条件。</p>
+                    <p>生成后支持格式预览、查看 Markdown 源码和保存为 .md 文件。</p>
                   </div>
                 )}
               </div>
@@ -408,7 +435,7 @@ export default function DocumentsPage() {
         title="移除文档"
         danger
         loading={busy === 'delete'}
-        content="将移除这份文档的本地文字副本及分析结果，原始文件和飞书文档不受影响。"
+        content="将移除本地文字、分析结果，以及关联的对话、测试任务和执行记录。原始文件和飞书文档保留，导出文件可在“文件与缓存”中清理。"
         confirmText="移除"
         onCancel={() => setDeleteOpen(false)}
         onConfirm={() =>

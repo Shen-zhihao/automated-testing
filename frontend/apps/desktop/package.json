@@ -11,6 +11,7 @@
     "start": "node scripts/run.mjs",
     "typecheck": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs",
+    "check:package": "node scripts/check-package.mjs",
     "package:mac": "electron-builder --mac --publish never",
     "package:win": "electron-builder --win --publish never"
   },
@@ -28,7 +29,16 @@
     },
     "files": [
       "src/**/*.{mjs,cjs}",
-      "package.json"
+      "package.json",
+      "!**/node_modules/**/*.map",
+      "!**/node_modules/**/{test,tests,__tests__,example,examples,benchmark,benchmarks,coverage,docs}/**",
+      "!**/node_modules/**/{README*,CHANGELOG*,HISTORY*}",
+      "!**/node_modules/exceljs/dist/**",
+      "!**/node_modules/mammoth/{browser/**,mammoth.browser.js,mammoth.browser.min.js}",
+      "!**/node_modules/pdfjs-dist/{build,web,types,image_decoders}/**",
+      "!**/node_modules/pdfjs-dist/legacy/{web,image_decoders}/**",
+      "!**/node_modules/pdfjs-dist/legacy/build/*.min.mjs",
+      "!**/node_modules/pdfjs-dist/legacy/build/pdf.sandbox.mjs"
     ],
     "extraResources": [
       {
@@ -65,16 +75,44 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
-    "publish": null
+    "publish": null,
+    "compression": "maximum",
+    "electronLanguages": [
+      "en",
+      "en_FEMININE",
+      "en_MASCULINE",
+      "en_NEUTER",
+      "en-US",
+      "en-US_FEMININE",
+      "en-US_MASCULINE",
+      "en-US_NEUTER",
+      "zh-CN",
+      "zh-CN_FEMININE",
+      "zh-CN_MASCULINE",
+      "zh-CN_NEUTER",
+      "zh-TW",
+      "zh-TW_FEMININE",
+      "zh-TW_MASCULINE",
+      "zh-TW_NEUTER",
+      "zh_CN",
+      "zh_CN_FEMININE",
+      "zh_CN_MASCULINE",
+      "zh_CN_NEUTER",
+      "zh_TW",
+      "zh_TW_FEMININE",
+      "zh_TW_MASCULINE",
+      "zh_TW_NEUTER"
+    ]
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.16.0"
   },
   "dependencies": {
     "adm-zip": "0.6.1",
     "exceljs": "4.4.0",
     "fast-xml-parser": "5.11.2",
     "html-to-text": "10.0.1",
+    "htmlparser2": "10.1.0",
     "mammoth": "1.13.0",
     "pdfjs-dist": "6.4.299"
   }

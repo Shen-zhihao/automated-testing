@@ -1,431 +1,330 @@
-.chatHomePage {
+.chatHomePage.connectedChat {
   display: flex;
-  gap: 16px;
+  gap: 17px;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  color: #111827;
-
+  color: var(--text-primary);
   .conversationPanel {
-    width: 285px;
+    width: 225px;
     flex-shrink: 0;
-    padding: 20px;
+    padding: 20px 14px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    border-radius: 24px;
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    gap: 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-primary);
   }
   .panelHeader {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
+    padding: 0 4px;
   }
   .panelTitle {
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 14px;
+    font-weight: 600;
   }
   .newChatBtn {
-    padding: 10px 16px;
-    border-radius: 24px;
-    background: #111827;
-    color: #fff;
+    font-size: 12px;
+    color: var(--text-accent);
+    background: var(--surface-secondary);
+    padding: 6px 10px;
+    border-radius: 6px;
   }
   .conversationSection {
-    flex: 1;
-    min-height: 0;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    flex: 1;
   }
-  .sectionTitle {
-    color: #9ca3af;
-    font-size: 12px;
-    margin-bottom: 12px;
+  .conversationSearch {
+    margin: 0 3px 15px;
+    input {
+      width: 100%;
+      background: var(--surface-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 7px;
+      padding: 9px 11px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
   }
   .conversationList {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
   }
-  .conversationRow {
-    position: relative;
-    margin-bottom: 8px;
-  }
   .conversationItem {
     width: 100%;
-    padding: 12px 34px 12px 12px;
-    border-radius: 14px;
+    padding: 13px 11px;
+    margin-bottom: 7px;
     text-align: left;
-    background: #f9fafb;
+    border-radius: 8px;
     border: 1px solid transparent;
-    &:hover,
+    background: var(--surface-secondary);
     &.active {
-      background: #fff;
-      border-color: #cbd5e1;
+      background: var(--surface-secondary);
+      border-color: var(--border);
+      color: var(--text-accent);
+    }
+    &:hover {
+      border-color: var(--border);
     }
   }
   .conversationName {
+    font-size: 12px;
+    line-height: 1.6;
     overflow-wrap: anywhere;
-    line-height: 1.5;
   }
   .conversationMeta {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
+    font-size: 10px;
+    color: var(--text-muted);
     margin-top: 8px;
-    color: #9ca3af;
-    font-size: 11px;
-  }
-  .deleteChatBtn {
-    position: absolute;
-    top: 10px;
-    right: 5px;
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
-    color: #94a3b8;
-    &:hover {
-      background: #fee2e2;
-      color: #b91c1c;
-    }
-  }
-  .emptyState {
-    padding: 18px 8px;
-    color: #94a3b8;
-    line-height: 1.7;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
   }
   .conversationFooter {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-top: 1px solid #e5e7eb;
-    padding-top: 16px;
+    padding: 15px 6px 0;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 10px;
+    color: var(--text-muted);
   }
-  .accountAvatar {
-    display: grid;
-    place-items: center;
-    width: 36px;
-    height: 36px;
-    background: #e5e7eb;
-    border-radius: 12px;
-    font-weight: 700;
+  .emptyState {
+    font-size: 12px;
+    line-height: 1.9;
+    color: var(--text-muted);
+    padding: 17px 8px;
   }
-  .accountName {
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .accountPhone {
-    font-size: 11px;
-    color: #94a3b8;
-    margin-top: 4px;
-  }
-
   .chatPanel {
     flex: 1;
     min-width: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    border-radius: 24px;
-    background: rgba(255, 255, 255, 0.8);
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: var(--surface-primary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     overflow: hidden;
   }
   .chatHeader {
-    padding: 20px 24px;
+    padding: 22px 25px;
     display: flex;
-    gap: 12px;
-    border-bottom: 1px solid #eef2f6;
+    gap: 13px;
+    border-bottom: 1px solid var(--border-subtle);
+    align-items: flex-start;
   }
   .chatHeaderMain {
     min-width: 0;
+    flex: 1;
+  }
+  .chatHeaderTools {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 100px;
   }
   .chatEyebrow {
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    color: #9ca3af;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
   }
   .chatTitle {
-    font-size: 22px;
-    margin-top: 8px;
+    font-size: 19px;
+    font-weight: 550;
+    line-height: 1.6;
+    margin-top: 6px;
     overflow-wrap: anywhere;
   }
   .chatSubtitle {
-    font-size: 13px;
-    color: #6b7280;
-    margin-top: 8px;
-    line-height: 1.6;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    margin-top: 5px;
   }
   .messageViewport {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 20px 24px;
+    padding: 25px;
   }
   .welcomeCard {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 24px;
-    border-radius: 20px;
-    border: 1px solid #e5e7eb;
-    background: linear-gradient(180deg, #fff, #f9fafb);
+    margin: auto;
+    max-width: 660px;
+    padding: 28px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    background: var(--surface-secondary);
   }
   .welcomeTitle {
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 19px;
+    font-weight: 550;
   }
   .welcomeDesc {
-    margin-top: 10px;
-    line-height: 1.7;
-    color: #6b7280;
-  }
-  .suggestionList {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 20px;
-  }
-  .suggestionItem {
-    text-align: left;
-    padding: 14px;
-    border-radius: 14px;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    line-height: 1.6;
-    &:hover {
-      background: #fff;
-      border-color: #94a3b8;
-    }
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.9;
+    margin-top: 12px;
   }
   .messageList {
-    max-width: 900px;
-    margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
+    max-width: 860px;
+    margin: auto;
   }
   .messageItem {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 7px;
   }
   .messageRole {
-    color: #9ca3af;
-    font-size: 12px;
+    font-size: 10px;
+    color: var(--text-muted);
   }
   .messageBubble {
-    position: relative;
     max-width: 100%;
-    padding: 16px 18px 36px;
-    border-radius: 18px;
-    border: 1px solid #e5e7eb;
-    background: #fff;
-    line-height: 1.75;
+    padding: 15px 18px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 11px;
+    font-size: 13px;
+    line-height: 1.85;
     overflow-wrap: anywhere;
-    p + p {
-      margin-top: 10px;
-    }
-    ul,
-    ol {
-      list-style: revert;
-      padding-left: 24px;
-    }
-    pre {
-      overflow-x: auto;
-      padding: 12px;
-      border-radius: 8px;
-      background: #f1f5f9;
-    }
-    code {
-      font-family: monospace;
-    }
-    a {
-      text-decoration: underline;
-    }
-    table {
-      display: block;
-      max-width: 100%;
-      overflow-x: auto;
-      border-collapse: collapse;
-    }
-    td,
-    th {
-      border: 1px solid #cbd5e1;
-      padding: 6px;
-    }
+    background: var(--surface-primary);
   }
   .messageItem.user {
     align-items: flex-end;
     .messageBubble {
-      max-width: 85%;
-      background: #111827;
-      color: #fff;
+      max-width: 88%;
+      background: var(--surface-secondary);
+      border-color: var(--border-subtle);
+      color: var(--text-secondary);
     }
   }
   .userMessageText {
     white-space: pre-wrap;
   }
-  .copyBtn {
-    position: absolute;
-    bottom: 8px;
-    right: 12px;
-    padding: 2px 6px;
-    font-size: 11px;
-    color: #64748b;
-    border-radius: 4px;
-    background: #f1f5f9;
-  }
   .composer {
-    padding: 12px 24px 20px;
-  }
-  .errorBanner {
-    color: #b91c1c;
-    padding: 8px 0;
+    padding: 10px 22px 20px;
+    border-top: 1px solid var(--border-subtle);
   }
   .composerBox {
-    padding: 14px 16px;
-    border: 1px solid #d1d5db;
-    border-radius: 18px;
-    background: #fff;
-  }
-  .composerHeader {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    color: #6b7280;
-    font-size: 12px;
-  }
-  .composerTip {
-    color: #9ca3af;
+    background: var(--surface-secondary);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 9px 14px;
+    box-shadow: 0 3px 10px var(--shadow-color);
   }
   .composerInput {
     display: block;
-    width: 100%;
-    min-height: 64px;
-    max-height: 180px;
     resize: vertical;
     border: 0;
-    font-size: 14px;
-    line-height: 1.6;
-    padding: 12px 0;
     background: transparent;
-    color: #111827;
+    width: 100%;
+    min-height: 62px;
+    max-height: 150px;
+    color: var(--text-primary);
+    line-height: 1.7;
+    font-size: 13px;
+    padding: 8px 0;
   }
   .composerActions {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
   }
-  .composerLeft,
-  .skillChips {
+  .composerLeft {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 8px;
   }
-  .skillChip {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: #f1f5f9;
-    border-radius: 8px;
-    padding: 6px 10px;
-    font-size: 12px;
-  }
-  .skillChipRemove {
-    color: #64748b;
-    font-size: 16px;
-  }
-  .skillBtn {
-    color: #64748b;
-    font-size: 12px;
-    padding: 8px;
+  .composerTip {
+    font-size: 10px;
+    color: var(--text-muted);
   }
   .sendBtn {
-    flex-shrink: 0;
-    padding: 10px 22px;
-    border-radius: 12px;
-    background: #111827;
-    color: #fff;
+    padding: 8px 19px;
+    background: var(--accent);
+    color: var(--on-accent);
+    border-radius: 7px;
+    font-size: 12px;
   }
-  .mobileListTrigger,
-  .drawerBackdrop {
-    display: none;
+  .errorBanner {
+    font-size: 12px;
+    color: var(--danger);
+    padding: 8px 0;
+  }
+  .chatQuickActions {
+    button {
+      font-size: 10px;
+      padding: 5px 7px;
+      background: var(--surface-secondary);
+      color: var(--text-muted);
+    }
+  }
+  .testJob {
+    margin: 7px 0;
+  }
+  .chatTaskTarget {
+    font-size: 11px;
+    margin-bottom: 7px;
+    .testLink {
+      font-size: 11px;
+    }
   }
 }
-
-@media (max-width: 1080px) {
-  .chatHomePage {
-    .mobileListTrigger {
-      display: grid;
-      place-items: center;
-      flex-shrink: 0;
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      border: 1px solid #e5e7eb;
-    }
+@media (max-width: 1100px) {
+  .chatHomePage.connectedChat {
+    gap: 12px;
     .conversationPanel {
-      position: fixed;
-      inset: 0 auto 0 0;
-      z-index: 40;
-      width: min(320px, 86vw);
-      border-radius: 0 24px 24px 0;
-      background: #fff;
-      transform: translateX(-100%);
-      visibility: hidden;
-      &.mobileOpen {
-        transform: translateX(0);
-        visibility: visible;
-      }
+      width: 185px;
+      padding: 16px 10px;
     }
-    .drawerBackdrop {
-      display: block;
-      position: fixed;
-      inset: 0;
-      z-index: 30;
-      background: rgba(15, 23, 42, 0.32);
-    }
-  }
-}
-@media (max-width: 600px) {
-  .chatHomePage {
     .chatHeader {
-      padding: 16px;
-    }
-    .chatTitle {
-      font-size: 18px;
+      padding: 18px;
     }
     .messageViewport {
-      padding: 16px;
-    }
-    .welcomeCard {
-      padding: 16px;
-    }
-    .welcomeTitle {
-      font-size: 20px;
-    }
-    .suggestionList {
-      grid-template-columns: 1fr;
+      padding: 18px;
     }
     .composer {
-      padding: 8px 12px 12px;
+      padding: 10px 16px 15px;
+    }
+    .welcomeCard {
+      padding: 22px;
     }
     .composerTip {
       display: none;
     }
-    .composerInput {
-      min-height: 58px;
+  }
+}
+@media (max-width: 820px) {
+  .chatHomePage.connectedChat {
+    .conversationPanel {
+      width: 155px;
     }
-    .composerActions {
-      align-items: flex-end;
+    .conversationMeta {
+      flex-wrap: wrap;
+      gap: 4px;
     }
-    .messageItem.user .messageBubble {
-      max-width: 95%;
+    .chatHeaderTools {
+      max-width: 70px;
+    }
+    .chatQuickActions {
+      display: none;
+    }
+    .chatTitle {
+      font-size: 16px;
+    }
+    .welcomeCard {
+      padding: 16px;
+    }
+    .chatTaskTarget select {
+      max-width: 160px;
     }
   }
 }

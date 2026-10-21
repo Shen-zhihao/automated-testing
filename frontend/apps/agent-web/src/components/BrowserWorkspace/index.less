@@ -1,0 +1,124 @@
+.workspaceTabs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  height: 42px;
+  padding: 6px 16px 0;
+  gap: 6px;
+  background: var(--surface-tertiary);
+  border-bottom: 1px solid var(--border);
+  button {
+    border: 0;
+    font: inherit;
+    cursor: pointer;
+  }
+  .workspaceTab {
+    padding: 0 16px;
+    color: var(--text-secondary);
+    border-radius: 8px 8px 0 0;
+    background: transparent;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .workspaceTab.active,
+  .webTab.active {
+    background: var(--surface-primary);
+    color: var(--text-title);
+  }
+  .webTabList {
+    display: flex;
+    gap: 5px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .webTab {
+    display: flex;
+    align-items: center;
+    min-width: 130px;
+    max-width: 240px;
+    border-radius: 8px 8px 0 0;
+    color: var(--text-secondary);
+    background: var(--surface-tertiary);
+  }
+  .webTabSelect {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    height: 100%;
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
+    span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+  .webTabClose {
+    flex-shrink: 0;
+    width: 23px;
+    height: 23px;
+    margin-right: 6px;
+    border-radius: 5px;
+    background: transparent;
+    color: inherit;
+    font-size: 17px;
+    &:hover {
+      background: var(--surface-tertiary);
+    }
+  }
+  .newWebTab {
+    align-self: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    color: var(--text-primary);
+    background: transparent;
+    border-radius: 6px;
+    &:hover {
+      background: var(--surface-tertiary);
+    }
+  }
+  .browserTabSpinner {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--border);
+    border-top-color: var(--border-strong);
+    border-radius: 50%;
+    animation: browserSpin 1s linear infinite;
+  }
+}
+@keyframes browserSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspaceTabs .browserTabSpinner {
+    animation: none;
+  }
+}
+.workspaceBrowserPanel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--surface-primary);
+}
+.browserWorkspaceError {
+  flex-shrink: 0;
+  padding: 9px 20px;
+  background: var(--surface-danger);
+  color: var(--danger);
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  button {
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+}

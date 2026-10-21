@@ -1,5 +1,6 @@
-import { normalizeContent } from './documents/parse.mjs';
+import { normalizeContent } from './documents/content.mjs';
 import { FeishuApi, FeishuApiError } from './feishu/api.mjs';
+import { renderFeishuBlocks } from './feishu/preview.mjs';
 
 export function parseFeishuUrl(input) {
   let url;
@@ -183,15 +184,17 @@ export class FeishuService {
   async read(input) {
     const parsed = parseFeishuUrl(input);
     const signal = this.controller.signal;
-    const token = await this.accessToken();
+    let token = await this.accessToken();
     signal.throwIfAborted();
     const get = async (resource) => {
+      const requestToken = token;
       try {
-        return await this.api.get(resource, token, signal);
+        return await this.api.get(resource, requestToken, signal);
       } catch (error) {
         if (!isExpiredToken(error) || signal.aborted) throw error;
-        this.forgetToken(token);
+        this.forgetToken(requestToken);
         const renewed = await this.accessToken();
+        token = renewed;
         signal.throwIfAborted();
         try {
           return await this.api.get(resource, renewed, signal);
@@ -215,14 +218,47 @@ export class FeishuService {
     const root = `/docx/v1/documents/${encodeURIComponent(documentId)}`;
     const [info, body] = await Promise.all([get(root), get(`${root}/raw_content`)]);
     signal.throwIfAborted();
+    const warnings = [];
+    let preview = null;
+    try {
+      const blocks = [];
+      const seenPages = new Set();
+      const revision = Number.isInteger(info.document?.revision_id)
+        ? info.document.revision_id
+        : -1;
+      let pageToken = '';
+      do {
+        const page = await get(
+          `${root}/blocks?page_size=500&document_revision_id=${revision}${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`,
+        );
+        signal.throwIfAborted();
+        if (!Array.isArray(page.items)) throw new Error('飞书没有返回文档结构。');
+        blocks.push(...page.items);
+        if (blocks.length > 20000) throw new Error('飞书文档结构超过 2 万个块。');
+        pageToken = page.has_more ? page.page_token : '';
+        if (
+          page.has_more &&
+          (typeof pageToken !== 'string' ||
+            !pageToken ||
+            pageToken.length > 4000 ||
+            seenPages.has(pageToken))
+        )
+          throw new Error('飞书文档分页异常。');
+        seenPages.add(pageToken);
+      } while (pageToken);
+      if (!blocks.length) throw new Error('飞书文档结构为空。');
+      preview = renderFeishuBlocks(blocks, documentId, info.document?.title ?? '', warnings);
+    } catch (error) {
+      signal.throwIfAborted();
+      warnings.push(`格式预览未获取成功，已保留完整纯文字，可稍后重新提取格式。${error.message}`);
+    }
     return {
       name: text(info.document?.title, 2000) || '飞书文档',
       source: parsed.url,
       kind: 'feishu',
       content: normalizeContent(body.content),
-      warnings: [
-        '通过飞书官方接口以应用身份导入正文纯文本。图片、附件、内嵌多维表格和画板未展开；分析前请核对原文。',
-      ],
+      preview,
+      warnings,
     };
   }
   async close() {

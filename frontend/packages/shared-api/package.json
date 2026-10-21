@@ -11,8 +11,7 @@
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
-    "typecheck": "tsc --noEmit",
-    "test": "pnpm build && node --test tests/*.test.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.3.3",
