@@ -6,6 +6,7 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 import DesktopRequired from '@/components/DesktopRequired';
 import MarkdownContent from '@/components/MarkdownContent';
 import { useBrowserWorkspace } from '@/components/BrowserWorkspace';
+import ExecutionRecord from './components/ExecutionRecord';
 import '../../styles/testing.less';
 const statusLabels: Record<string, string> = {
   running: '执行中',
@@ -444,32 +445,7 @@ export default function TaskDetailPage() {
             <p className="testMuted">暂无执行记录。测试文档中的用例目前均未验证。</p>
           )}
           {task.runs.map((run) => (
-            <details key={run.id} className="testRun" open={run.status === 'running'}>
-              <summary>
-                <span className="testTag">{statusLabels[run.status]}</span>
-                {new Date(run.createdAt).toLocaleString('zh-CN')} · {run.steps.length} 个已执行步骤
-              </summary>
-              <p>{run.message}</p>
-              <p className="testMuted">
-                对应文档：{run.reportId} · 本次未选择 {run.untestedCaseIds.length} 条用例
-              </p>
-              {run.cases.map((item) => (
-                <p key={item.caseId}>
-                  {item.caseId} · {statusLabels[item.status]} · {item.message}
-                </p>
-              ))}
-              <ol>
-                {run.steps.map((step, index) => (
-                  <li
-                    key={index}
-                    className={`testPlanStep ${step.status === 'failed' ? 'stepFailed' : 'stepPassed'}`}
-                  >
-                    {step.caseId} · {step.description} · {statusLabels[step.status]}
-                    <small>{step.evidence}</small>
-                  </li>
-                ))}
-              </ol>
-            </details>
+            <ExecutionRecord key={run.id} run={run} labels={statusLabels} />
           ))}
         </section>
       )}

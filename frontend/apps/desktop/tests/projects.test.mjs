@@ -90,7 +90,7 @@ test('populated v5 migrates into default project without losing sources, convers
     );
   }
   store.db.exec(
-    'DROP INDEX documents_project; ALTER TABLE documents DROP COLUMN project_id; DROP TABLE projects; DROP TABLE project_files; DROP TABLE project_cleanup; DROP TABLE command_runs; DROP TABLE command_settings; PRAGMA user_version=5;',
+    'DROP INDEX documents_project; DROP INDEX documents_summary; DROP INDEX test_sessions_summary; DROP INDEX test_runs_summary; DROP INDEX test_runs_status; CREATE INDEX test_runs_task ON test_runs(task_id, created_at); ALTER TABLE documents DROP COLUMN project_id; DROP TABLE projects; DROP TABLE project_files; DROP TABLE project_cleanup; DROP TABLE command_runs; DROP TABLE command_settings; PRAGMA user_version=5;',
   );
   testing.close();
   store.close();

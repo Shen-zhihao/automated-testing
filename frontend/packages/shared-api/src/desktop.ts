@@ -240,7 +240,8 @@ export interface DesktopBridge {
   importBrowserData(kind: BrowserImportKind): Promise<BrowserImportResult | null>;
   removeBrowserData(kind: BrowserImportKind, id: string): Promise<void>;
   fillBrowserPassword(id: string, passwordId: string): Promise<void>;
-  snapshot(projectId?: string): Promise<WorkspaceSnapshot>;
+  /** null reads global metadata only; omitted selects the legacy default project. */
+  snapshot(projectId?: string | null): Promise<WorkspaceSnapshot>;
   saveSettings(input: SettingsInput): Promise<PublicSettings>;
   testModel(): Promise<string>;
   testFeishu(input: FeishuSettingsInput): Promise<FeishuStatus>;

@@ -1,33 +1,19 @@
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { useBrowserWorkspace } from '@/components/BrowserWorkspace';
+import { lazy, memo, Suspense } from 'react';
+import { useOpenBrowser } from '@/components/BrowserWorkspace';
 
-export default function MarkdownContent({ children }: { children: string }) {
-  const browser = useBrowserWorkspace();
+const Renderer = lazy(() => import('./components/Renderer'));
+
+export default memo(function MarkdownContent({ children }: { children: string }) {
+  const openBrowser = useOpenBrowser();
   return (
-    <div className="markdownContent">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          img: ({ alt }) => <span>[图片{alt ? `：${alt}` : ''}]</span>,
-          a: ({ href, children: label }) =>
-            href && /^https?:\/\//i.test(href) ? (
-              <a
-                href={href}
-                onClick={(event) => {
-                  event.preventDefault();
-                  void browser.open({ url: href });
-                }}
-              >
-                {label}
-              </a>
-            ) : (
-              <span>{label}</span>
-            ),
-        }}
-      >
-        {children}
-      </ReactMarkdown>
-    </div>
+    <Suspense
+      fallback={
+        <div className="markdownContent" role="status">
+          正在打开文档…
+        </div>
+      }
+    >
+      <Renderer content={children} openBrowser={openBrowser} />
+    </Suspense>
   );
-}
+});

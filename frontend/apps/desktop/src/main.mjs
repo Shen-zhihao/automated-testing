@@ -33,7 +33,7 @@ import { projectBrowserStorage, purgeDeletedProfiles } from './testing/browser-s
 
 const development = !app.isPackaged && process.argv.includes('--dev');
 const sourceRoot = path.dirname(fileURLToPath(import.meta.url));
-const appIcon = path.resolve(sourceRoot, '../assets/brand/icon.png');
+const appIcon = path.resolve(sourceRoot, '../assets/brand/icon-runtime.png');
 const uiRoot = app.isPackaged
   ? path.join(process.resourcesPath, 'ui')
   : path.resolve(sourceRoot, '../../agent-web/dist');
@@ -143,7 +143,6 @@ if (!['darwin', 'win32'].includes(process.platform)) {
           broadcast('workspace:appearance-changed');
         },
       });
-      await purgeDeletedProfiles(store, app.getPath('sessionData'));
       const settings = new SettingsService(store, {
         encrypt: async (value) => {
           if (!(await safeStorage.isAsyncEncryptionAvailable()))
@@ -154,6 +153,7 @@ if (!['darwin', 'win32'].includes(process.platform)) {
       });
       const feishu = new FeishuService(settings, { notify });
       const downloads = new Set();
+      let profileCleanup;
       const testing = new TestingService({
         store,
         settings,
@@ -217,6 +217,7 @@ if (!['darwin', 'win32'].includes(process.platform)) {
           feishu.close(),
           storage.pending,
           workspace.terminal.close(),
+          profileCleanup,
           ...downloads,
         ]).finally(() => app.quit());
       });
@@ -247,6 +248,12 @@ if (!['darwin', 'win32'].includes(process.platform)) {
       app.setAboutPanelOptions({ applicationName: APP_DISPLAY_NAME, iconPath: appIcon });
       Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenuTemplate()));
       await createWindow();
+      // Deleted profiles cannot belong to an active project. Their disk cleanup is
+      // outside the first-window path, but still excludes concurrent data migration.
+      if (!quitting)
+        profileCleanup = storage
+          .run(() => purgeDeletedProfiles(store, app.getPath('sessionData')))
+          .catch(() => {});
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) void createWindow().catch(fail);
       });

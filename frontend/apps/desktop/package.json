@@ -13,6 +13,7 @@
     "test": "node --test tests/*.test.mjs",
     "check:package": "node scripts/check-package.mjs",
     "brand:icons": "node scripts/export-brand-icons.mjs",
+    "benchmark:resources": "node --expose-gc scripts/benchmark-resources.mjs",
     "package:mac": "electron-builder --mac --publish never",
     "package:win": "electron-builder --win --publish never"
   },
@@ -30,7 +31,7 @@
     },
     "files": [
       "src/**/*.{mjs,cjs}",
-      "assets/brand/icon.png",
+      "assets/brand/icon-runtime.png",
       "package.json",
       "!**/node_modules/**/*.map",
       "!**/node_modules/**/{test,tests,__tests__,example,examples,benchmark,benchmarks,coverage,docs}/**",

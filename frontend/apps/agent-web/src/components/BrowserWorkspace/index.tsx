@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -23,6 +24,12 @@ type BrowserWorkspace = {
   clearError: () => void;
 };
 const Context = createContext<BrowserWorkspace | null>(null);
+const OpenContext = createContext<BrowserWorkspace['open'] | null>(null);
+export function useOpenBrowser() {
+  const open = useContext(OpenContext);
+  if (!open) throw new Error('浏览器工作区尚未就绪。');
+  return open;
+}
 export function useBrowserWorkspace() {
   const context = useContext(Context);
   if (!context) throw new Error('浏览器工作区尚未就绪。');
@@ -78,50 +85,59 @@ export function BrowserWorkspaceProvider({ children }: { children: ReactNode }) 
       unsubscribe?.();
     };
   }, [refresh]);
-  const open = async ({ taskId, url }: { taskId?: string; url?: string }) => {
-    if (!window.desktop) {
-      setError('请在桌面客户端中打开网页。');
-      return;
-    }
-    setError('');
-    try {
-      const id = await window.desktop.openTestBrowser(taskId || 'standalone', {
-        url,
-        projectId: projectId || undefined,
-      });
-      if (currentProject.current !== projectId) return;
-      await refresh();
-      if (currentProject.current === projectId) select(id);
-    } catch (cause) {
-      if (currentProject.current === projectId)
-        setError(cause instanceof Error ? cause.message : '网页打开失败。');
-    }
-  };
-  const hide = async (id: string) => {
-    try {
-      await window.desktop?.hideBrowserTab(id);
-      if (active.current === id) select(null);
-      await refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '无法关闭标签。');
-    }
-  };
+  const open = useCallback(
+    async ({ taskId, url }: { taskId?: string; url?: string }) => {
+      if (!window.desktop) {
+        setError('请在桌面客户端中打开网页。');
+        return;
+      }
+      setError('');
+      try {
+        const id = await window.desktop.openTestBrowser(taskId || 'standalone', {
+          url,
+          projectId: projectId || undefined,
+        });
+        if (currentProject.current !== projectId) return;
+        await refresh();
+        if (currentProject.current === projectId) select(id);
+      } catch (cause) {
+        if (currentProject.current === projectId)
+          setError(cause instanceof Error ? cause.message : '网页打开失败。');
+      }
+    },
+    [projectId, refresh, select],
+  );
+  const hide = useCallback(
+    async (id: string) => {
+      try {
+        await window.desktop?.hideBrowserTab(id);
+        if (active.current === id) select(null);
+        await refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : '无法关闭标签。');
+      }
+    },
+    [refresh, select],
+  );
+  const clearError = useCallback(() => setError(''), []);
+  const value = useMemo(
+    () => ({
+      tabs: tabs.filter((tab) => tab.projectId === projectId),
+      activeId: tabs.some((tab) => tab.id === activeId && tab.projectId === projectId)
+        ? activeId
+        : null,
+      error,
+      open,
+      select,
+      hide,
+      clearError,
+    }),
+    [tabs, projectId, activeId, error, open, select, hide, clearError],
+  );
   return (
-    <Context.Provider
-      value={{
-        tabs: tabs.filter((tab) => tab.projectId === projectId),
-        activeId: tabs.some((tab) => tab.id === activeId && tab.projectId === projectId)
-          ? activeId
-          : null,
-        error,
-        open,
-        select,
-        hide,
-        clearError: () => setError(''),
-      }}
-    >
-      {children}
-    </Context.Provider>
+    <OpenContext.Provider value={open}>
+      <Context.Provider value={value}>{children}</Context.Provider>
+    </OpenContext.Provider>
   );
 }
 export function BrowserTabs() {

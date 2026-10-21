@@ -42,6 +42,7 @@ try {
     await copyFile(pngs.get(size * 2), path.join(iconset, `icon_${size}x${size}@2x.png`));
   }
   run('iconutil', ['-c', 'icns', iconset, '-o', path.join(brandRoot, 'icon.icns')]);
+  await copyFile(pngs.get(512), path.join(brandRoot, 'icon-runtime.png'));
 
   const sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
   const frames = await Promise.all(sizes.map((size) => readFile(pngs.get(size))));

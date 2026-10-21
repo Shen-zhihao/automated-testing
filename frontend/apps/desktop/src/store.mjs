@@ -14,7 +14,7 @@ export class WorkspaceStore {
       'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000; PRAGMA secure_delete = ON;',
     );
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 7) {
+    if (version > 8) {
       this.db.close();
       throw new Error('本地数据由更新版本创建，请升级应用后打开。');
     }
@@ -59,6 +59,25 @@ export class WorkspaceStore {
       CREATE TABLE command_runs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, created_at TEXT NOT NULL, data TEXT NOT NULL);
       CREATE INDEX command_runs_project ON command_runs(project_id, created_at);
       PRAGMA user_version = 7; COMMIT;`);
+    if (version < 8)
+      this.db.exec(`BEGIN;
+      CREATE INDEX documents_summary ON documents (
+        project_id, created_at DESC, id, name, source, kind, length(content), updated_at, analysis IS NOT NULL
+      );
+      CREATE INDEX test_sessions_summary ON test_sessions (
+        json_extract(data, '$.projectId'), updated_at DESC, id,
+        json_extract(data, '$.title'), json_extract(data, '$.sourceId'),
+        json_extract(data, '$.featureId'), json_extract(data, '$.taskId')
+      );
+      DROP INDEX test_runs_task;
+      CREATE INDEX test_runs_summary ON test_runs (
+        task_id, created_at DESC, id, json_extract(data, '$.status'), json_extract(data, '$.message')
+      );
+      CREATE INDEX test_runs_status ON test_runs (json_extract(data, '$.status'));
+      DROP INDEX command_runs_project;
+      CREATE INDEX command_runs_project ON command_runs (project_id, created_at DESC, id DESC);
+      CREATE INDEX command_runs_status ON command_runs (json_extract(data, '$.status'), created_at, id);
+      PRAGMA user_version = 8; COMMIT;`);
     this.projects = new ProjectStore(this);
   }
 

@@ -1,7 +1,6 @@
 import { open } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { decodeImport, MAX_IMPORT_BYTES, parseBookmarks, parsePasswords } from './imports.mjs';
 
 const mask = (value) =>
   value
@@ -33,6 +32,8 @@ export class BrowserDataService {
   }
   async performImport(kind, file) {
     if (!['bookmarks', 'passwords'].includes(kind)) throw new Error('导入类型无效。');
+    const { decodeImport, MAX_IMPORT_BYTES, parseBookmarks, parsePasswords } =
+      await import('./imports.mjs');
     const extension = path.extname(file).toLowerCase();
     if (!(kind === 'bookmarks' ? ['.html', '.htm'] : ['.csv']).includes(extension))
       throw new Error(kind === 'bookmarks' ? '请选择书签 HTML 文件。' : '请选择密码 CSV 文件。');

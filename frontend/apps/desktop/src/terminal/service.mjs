@@ -73,11 +73,13 @@ export class TerminalService {
     this.store.projects.get(id);
     return this.store.db
       .prepare(
-        'SELECT data FROM command_runs WHERE project_id=? ORDER BY created_at DESC, id DESC LIMIT 100',
+        `SELECT json_remove(json_set(data, '$.output', substr(json_extract(data, '$.output'), -500)), '$.fingerprint') AS data
+        FROM command_runs WHERE project_id=? ORDER BY created_at DESC, id DESC LIMIT 100`,
       )
       .all(id)
       .map((row) => {
-        const { fingerprint: _hash, ...run } = JSON.parse(row.data);
+        const run = JSON.parse(row.data);
+        // SQLite counts Unicode code points; preserve the public 500 UTF-16-unit limit.
         return { ...run, output: run.output.slice(-500) };
       });
   }

@@ -61,7 +61,7 @@ export class ProjectStore {
       .prepare(
         `SELECT p.id, p.name, p.description, p.created_at AS createdAt, p.updated_at AS updatedAt,
       (SELECT count(*) FROM documents WHERE project_id=p.id) AS documentCount,
-      (SELECT count(*) FROM documents WHERE project_id=p.id AND analysis IS NOT NULL) AS analyzedCount,
+      (SELECT coalesce(sum(analysis IS NOT NULL), 0) FROM documents WHERE project_id=p.id) AS analyzedCount,
       (SELECT count(*) FROM test_sessions WHERE json_extract(data, '$.projectId')=p.id) AS chatCount,
       (SELECT count(*) FROM test_tasks WHERE json_extract(data, '$.projectId')=p.id) AS taskCount
       FROM projects p ORDER BY p.updated_at DESC, p.id`,

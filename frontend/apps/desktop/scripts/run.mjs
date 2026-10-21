@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import electron from 'electron';
-import { createServer } from 'vite';
 
 if (!['darwin', 'win32'].includes(process.platform)) {
   throw new Error('桌面原型仅支持 Windows 和 macOS。');
@@ -24,6 +23,7 @@ async function stop(code = 0) {
 
 try {
   if (development) {
+    const { createServer } = await import('vite');
     server = await createServer({
       root: uiRoot,
       configFile: path.join(uiRoot, 'vite.config.ts'),

@@ -64,7 +64,8 @@ export class WorkspaceService {
   }
   snapshot(projectId) {
     const projects = this.store.projects.list();
-    projectId ??= projects[0]?.id || null;
+    // undefined retains the legacy default; null explicitly asks for global metadata only.
+    if (projectId === undefined) projectId = projects[0]?.id || null;
     if (projectId) this.store.projects.get(projectId);
     const documents = projectId ? this.store.listDocuments(projectId) : [];
     const documentIds = new Set(documents.map((document) => document.id));
@@ -77,7 +78,7 @@ export class WorkspaceService {
       importing: this.importing,
       feishu: this.feishu.status(),
       storage: this.storage?.info(),
-      ...(this.testing?.snapshot(projectId) || {
+      ...((projectId && this.testing?.snapshot(projectId)) || {
         testSessions: [],
         testTasks: [],
         testJobs: {},

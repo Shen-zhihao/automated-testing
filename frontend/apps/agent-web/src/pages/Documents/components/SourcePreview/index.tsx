@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import createDOMPurify from 'dompurify';
 import type { WorkspaceDocument } from '@project/shared-api';
 import MarkdownContent from '@/components/MarkdownContent';
@@ -48,7 +48,7 @@ purifier.addHook('uponSanitizeAttribute', (_node, data) => {
   }
 });
 
-export default function SourcePreview({ document }: { document: WorkspaceDocument }) {
+export default memo(function SourcePreview({ document }: { document: WorkspaceDocument }) {
   const { appearance } = useAppearance();
   // Native prefers-color-scheme updates within the scriptless iframe without reloading it.
   const previewTheme = window.desktop?.getAppearance ? '' : appearance.theme;
@@ -163,4 +163,4 @@ export default function SourcePreview({ document }: { document: WorkspaceDocumen
       )}
     </div>
   );
-}
+});
