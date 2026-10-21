@@ -8,7 +8,7 @@ import { SettingsService, DEFAULT_MODEL, normalizeBaseUrl } from '../src/setting
 import { WorkspaceService } from '../src/workspace.mjs';
 import { complete, analyzeDocument, splitText } from '../src/model.mjs';
 import { createServer } from 'node:http';
-import { reportFixture } from './report-fixture.mjs';
+import { analysisReply } from './analysis-fixture.mjs';
 
 const vault = {
   encrypt: async (text) => Buffer.from(text.split('').reverse().join('')),
@@ -176,7 +176,7 @@ test('model failures, refusal and truncated responses never look successful', as
   );
 });
 
-test('long document analysis covers every segment and reports progress before final synthesis', async () => {
+test('long document analysis covers every segment and assembles per-feature output locally', async () => {
   const content =
     '第一段规则\n' +
     '甲'.repeat(12000) +
@@ -194,16 +194,19 @@ test('long document analysis covers every segment and reports progress before fi
       if (body.messages[0]?.content.includes('独立的工程范围与安全审查器'))
         return answer('{"decision":"allow"}');
       calls.push(body);
-      return answer(calls.length <= 3 ? '分段笔记：锁定条件' : reportFixture);
+      return answer(analysisReply(body.messages));
     },
   });
-  assert.equal(analysis.segments, 3);
+  assert.equal(analysis.segments, splitText(content, 6000).length);
   assert.ok(calls.some((call) => call.messages[1].content.includes('尾部独有需求')));
-  assert.equal(calls.length, 4);
-  assert.match(calls[3].messages[1].content, /分段分析笔记/);
+  assert.ok(calls.length > analysis.segments);
+  assert.ok(
+    calls.every((call) => call.messages.reduce((n, item) => n + item.content.length, 0) <= 48000),
+  );
   assert.equal(analysis.kind, 'implementation-plan');
-  assert.ok(analysis.content.includes(reportFixture.trim()));
-  assert.equal(progress.at(-1), '正在编写功能实现步骤与验收标准');
+  assert.match(analysis.content, /S-001-01/);
+  assert.match(analysis.content, /AC-001-01/);
+  assert.equal(progress.at(-1), '正在校验功能覆盖与编号并组装完整文档');
 });
 
 test('mixed import keeps valid files; cancellation preserves previous analysis and allows retry', async () => {
@@ -238,23 +241,21 @@ test('mixed import keeps valid files; cancellation preserves previous analysis a
   await assert.rejects(running, /取消/);
   assert.equal(store.getDocument(id).analysis.content, 'previous report');
   assert.equal(service.snapshot().jobs[id].status, 'cancelled');
-  service.fetchImpl = async (_, options) =>
-    answer(
-      JSON.parse(options.body).messages[0]?.content.includes('独立的工程范围与安全审查器')
-        ? '{"decision":"allow"}'
-        : '## 功能实现步骤\n仅包含步骤，缺少验收。',
+  service.fetchImpl = async (_, options) => {
+    const messages = JSON.parse(options.body).messages;
+    return answer(
+      messages[1]?.content.includes('AC 编号从')
+        ? '仅有说明，缺少验收编号。'
+        : analysisReply(messages),
     );
+  };
   await assert.rejects(service.analyze(id, ''), /功能验收标准/);
   assert.equal(store.getDocument(id).analysis.content, 'previous report');
   service.fetchImpl = async (_, options) =>
-    answer(
-      JSON.parse(options.body).messages[0]?.content.includes('独立的工程范围与安全审查器')
-        ? '{"decision":"allow"}'
-        : reportFixture,
-    );
+    answer(analysisReply(JSON.parse(options.body).messages));
   await service.analyze(id, '');
   assert.equal(store.getDocument(id).analysis.kind, 'implementation-plan');
-  assert.ok(store.getDocument(id).analysis.content.includes(reportFixture.trim()));
+  assert.match(store.getDocument(id).analysis.content, /AC-001-01/);
   store.close();
 });
 
@@ -317,22 +318,18 @@ test('long HTML analysis carries interaction and error evidence through chunk re
     name: 'prototype.html',
     content: '流程入口\n' + '页面状态\n'.repeat(2600) + '\n末尾规则：失败只重试本段',
   };
-  const chunks = splitText(html.content);
-  const htmlReport =
-    reportFixture +
-    ['端到端业务流程', '关键交互与状态流转', '错误处理与恢复', '测试实施方向']
-      .map((title) => `\n## ${title}\n测试场景、前置条件和可观察断言待执行。`)
-      .join('');
+  const chunks = splitText(html.content, 6000);
   await analyzeDocument(html, '', config, {
     fetchImpl: async (_, request) => {
       const body = JSON.parse(request.body);
       if (body.messages[0]?.content.includes('独立的工程范围与安全审查器'))
         return answer('{"decision":"allow"}');
       calls.push(body.messages[1].content);
-      return answer(calls.length <= chunks.length ? '失败恢复证据：只重试本段。' : htmlReport);
+      return answer(analysisReply(body.messages));
     },
   });
-  assert.equal(calls.length, chunks.length + 1);
+  assert.ok(calls.length > chunks.length);
+  assert.equal(calls.filter((text) => text.includes('本次只写')).length, chunks.length * 4);
   assert.ok(
     calls.every(
       (text) =>

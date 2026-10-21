@@ -5,6 +5,7 @@ import type { WorkTestTask } from '@project/shared-api';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import DesktopRequired from '@/components/DesktopRequired';
 import MarkdownContent from '@/components/MarkdownContent';
+import Select from '@/components/Select';
 import { useBrowserWorkspace } from '@/components/BrowserWorkspace';
 import ExecutionRecord from './components/ExecutionRecord';
 import '../../styles/testing.less';
@@ -107,7 +108,7 @@ export default function TaskDetailPage() {
             disabled={locked}
             onClick={() =>
               void perform(async () => {
-                if (task.sessionId) {
+                if (state?.testSessions.some((session) => session.id === task.sessionId)) {
                   navigate(`${projectPath('chat')}?session=${task.sessionId}`);
                   return;
                 }
@@ -255,14 +256,18 @@ export default function TaskDetailPage() {
           {task.reportHistory.length > 0 && (
             <label className="testMuted">
               查看版本{' '}
-              <select value={historyId} onChange={(event) => setHistoryId(event.target.value)}>
-                <option value="">当前版本</option>
-                {task.reportHistory.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {new Date(item.createdAt).toLocaleString('zh-CN')}
-                  </option>
-                ))}
-              </select>
+              <Select
+                aria-label="查看文档版本"
+                value={historyId}
+                onChange={setHistoryId}
+                options={[
+                  { value: '', label: '当前版本' },
+                  ...task.reportHistory.map((item) => ({
+                    value: item.id,
+                    label: new Date(item.createdAt).toLocaleString('zh-CN'),
+                  })),
+                ]}
+              />
             </label>
           )}
           {report ? (
@@ -282,12 +287,16 @@ export default function TaskDetailPage() {
               <article key={note.id} className="testCase">
                 <p className="testMuted">
                   {new Date(note.createdAt).toLocaleString('zh-CN')} ·{' '}
-                  <Link
-                    className="testLink"
-                    to={`${projectPath('chat')}?session=${note.sessionId}`}
-                  >
-                    回到原对话
-                  </Link>
+                  {state?.testSessions.some((session) => session.id === note.sessionId) ? (
+                    <Link
+                      className="testLink"
+                      to={`${projectPath('chat')}?session=${note.sessionId}`}
+                    >
+                      回到原对话
+                    </Link>
+                  ) : (
+                    <span>原对话已删除</span>
+                  )}
                 </p>
                 <MarkdownContent>{note.content}</MarkdownContent>
               </article>

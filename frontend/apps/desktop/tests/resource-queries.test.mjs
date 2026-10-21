@@ -37,7 +37,7 @@ test('a populated v7 database upgrades once and keeps documents, secrets, histor
     DROP INDEX command_runs_status; PRAGMA user_version=7;`);
   store.close();
   store = new WorkspaceStore(file);
-  assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 8);
+  assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 9);
   assert.equal(store.readSettings().apiKey, 'synthetic-encrypted-value');
   assert.equal(store.getDocument(document.id).analysis.content, '保留分析');
   assert.equal(store.projects.list()[0].analyzedCount, 1);
@@ -69,7 +69,7 @@ test('summary reads use covering indexes and startup recovery uses a status look
   for (const [fragment, index, parameters] of [
     ['FROM documents WHERE project_id', 'documents_summary', [DEFAULT_PROJECT_ID]],
     ['FROM test_sessions WHERE', 'test_sessions_summary', [DEFAULT_PROJECT_ID]],
-    ["IN ('running', 'reviewing')", 'command_runs_status', []],
+    ["IN ('running', 'reviewing', 'pending')", 'command_runs_status', []],
   ]) {
     const sql = queries.find((value) => value.includes(fragment));
     assert.ok(sql, fragment);

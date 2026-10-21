@@ -1,4 +1,4 @@
-.projectContextMenu {
+.deleteContextMenu {
   position: fixed;
   z-index: 1200;
   width: 190px;
@@ -6,10 +6,11 @@
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 10px;
+  outline: none;
   background: var(--surface-primary);
   color: var(--text-primary);
   box-shadow: 0 8px 28px var(--shadow-color);
-  .projectContextTitle {
+  .deleteContextTitle {
     padding: 7px 10px 9px;
     font-size: 11px;
     color: var(--text-secondary);
@@ -32,5 +33,16 @@
       outline: none;
       background: var(--surface-danger);
     }
+    &:disabled {
+      color: var(--text-muted);
+      background: transparent;
+      cursor: not-allowed;
+    }
+  }
+  .deleteContextHint {
+    padding: 4px 10px 8px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-muted);
   }
 }

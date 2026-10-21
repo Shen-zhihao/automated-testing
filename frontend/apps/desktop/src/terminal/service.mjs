@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { mkdir, lstat, realpath, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { commandTokens, inspectCommand, defaultShell } from './policy.mjs';
@@ -17,10 +18,11 @@ export class TerminalService {
     this.store = workspace.store;
     this.running = new Map();
     this.reviews = new Map();
+    this.changes = new EventEmitter();
     this.closing = false;
     for (const row of this.store.db
       .prepare(
-        "SELECT data FROM command_runs WHERE json_extract(data, '$.status') IN ('running', 'reviewing')",
+        "SELECT data FROM command_runs WHERE json_extract(data, '$.status') IN ('running', 'reviewing', 'pending')",
       )
       .all()) {
       const run = JSON.parse(row.data);
@@ -47,23 +49,10 @@ export class TerminalService {
       throw new Error('工程工作目录不可链接到其他位置。');
     return directory;
   }
-  mode(id) {
-    this.store.projects.get(id);
-    return (
-      this.store.db.prepare('SELECT mode FROM command_settings WHERE project_id=?').get(id)?.mode ||
-      'manual'
-    );
-  }
-  setMode(id, mode) {
-    if (!['manual', 'managed'].includes(mode)) throw new Error('执行权限模式无效。');
-    this.workspace.assertProjectIdle(id);
-    this.store.db.prepare('INSERT OR REPLACE INTO command_settings VALUES (?, ?)').run(id, mode);
-    this.workspace.notify();
-    return this.info(id);
-  }
   info(id) {
+    this.store.projects.get(id);
     return {
-      mode: this.mode(id),
+      execution: 'background',
       shell: this.shell,
       directory: this.directory(id),
       platform: this.platform,
@@ -99,9 +88,39 @@ export class TerminalService {
       .prepare('INSERT OR REPLACE INTO command_runs VALUES (?, ?, ?, ?)')
       .run(run.id, run.projectId, run.createdAt, JSON.stringify(run));
     this.workspace.notify();
+    this.changes.emit(run.id);
     return run;
   }
-  async propose(id, { command, reason, sessionId = null }) {
+  wait(id, runId, signal) {
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        this.changes.off(runId, update);
+        signal?.removeEventListener('abort', abort);
+      };
+      const abort = () => {
+        cleanup();
+        this.stop(id);
+        reject(signal.reason || new Error('命令已停止。'));
+      };
+      const update = () => {
+        try {
+          const run = this.publicRun(id, runId);
+          if (!['pending', 'reviewing', 'running'].includes(run.status)) {
+            cleanup();
+            resolve(run);
+          }
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      };
+      this.changes.on(runId, update);
+      signal?.addEventListener('abort', abort, { once: true });
+      if (signal?.aborted) abort();
+      else update();
+    });
+  }
+  async propose(id, { command, reason, sessionId = null }, { signal } = {}) {
     this.store.projects.get(id);
     if (this.closing || this.workspace.projectLocks.has(id))
       throw new Error('工程正在关闭或清理，暂不能创建命令。');
@@ -127,14 +146,25 @@ export class TerminalService {
     };
     this.save(run);
     const controller = new AbortController();
-    this.reviews.set(run.id, { projectId: id, controller });
+    const operationSignal = signal
+      ? AbortSignal.any([signal, controller.signal])
+      : controller.signal;
+    const completed = Promise.withResolvers();
+    this.reviews.set(run.id, { projectId: id, controller, done: completed.promise });
     try {
+      operationSignal.throwIfAborted();
       commandTokens(command);
       await this.ensureDirectory(id);
       const checked = await inspectCommand(command, run.cwd);
       const config = await this.workspace.settings.modelConfig();
       const project = this.store.projects.get(id),
         documents = this.store.listDocuments(id);
+      const request = sessionId
+        ? this.workspace.testing.db
+            .session(sessionId)
+            .messages.filter((message) => message.role === 'user')
+            .at(-1)?.content || ''
+        : run.reason;
       const decision = await reviewAgentScope(
         config,
         {
@@ -143,28 +173,27 @@ export class TerminalService {
           documents: documents.map(({ name }) => name),
           command,
           reason: run.reason,
+          request,
           files: checked.files,
         },
-        { fetchImpl: this.workspace.fetchImpl, signal: controller.signal },
+        { fetchImpl: this.workspace.fetchImpl, signal: operationSignal },
       );
-      controller.signal.throwIfAborted();
+      operationSignal.throwIfAborted();
       if (decision !== 'allow')
         throw new Error('命令与工程无关、存在风险或依据不足，安全审查未放行。');
       run.fingerprint = fingerprint(checked);
       run.status = 'pending';
+      run.autoApproved = true;
       this.save(run);
-      if (this.mode(id) === 'managed') {
-        run.autoApproved = true;
-        this.save(run);
-        this.drain();
-      }
+      this.drain();
     } catch (error) {
-      run.status = 'blocked';
-      run.error = error.message;
+      run.status = operationSignal.aborted ? 'cancelled' : 'blocked';
+      run.error = operationSignal.aborted ? '命令已停止。' : error.message;
       run.finishedAt = stamp();
       this.save(run);
     } finally {
       this.reviews.delete(run.id);
+      completed.resolve();
     }
     return this.publicRun(id, run.id);
   }
@@ -176,26 +205,21 @@ export class TerminalService {
       )
       .all()) {
       if (this.running.size >= 3) return;
-      if (
-        this.running.has(id) ||
-        this.workspace.projectLocks.has(id) ||
-        this.mode(id) !== 'managed'
-      )
-        continue;
-      this.start(id, runId, false);
+      if (this.running.has(id) || this.workspace.projectLocks.has(id)) continue;
+      this.start(id, runId);
     }
   }
-  start(id, runId, approved = true) {
+  start(id, runId) {
     if (this.closing || this.workspace.projectLocks.has(id))
       throw new Error('工程正在清理或关闭，命令未执行。');
     const run = this.get(id, runId);
-    if (run.status !== 'pending') throw new Error('只有待确认命令可以执行，已完成命令请重新创建。');
-    if (!approved && this.mode(id) !== 'managed') return;
+    if (run.status !== 'pending' || !run.autoApproved)
+      throw new Error('只有已通过检查的排队命令可以执行，已完成命令请重新创建。');
     if (this.running.has(id)) throw new Error('本工程已有运行中的命令，请等待完成或停止。');
     if (this.running.size >= 3) throw new Error('同时最多执行三个工程命令。');
     run.status = 'running';
     run.startedAt = stamp();
-    run.approval = approved ? 'manual' : 'managed';
+    run.execution = 'background';
     this.save(run);
     const entry = { stop: null, done: null, cancelled: false };
     this.running.set(id, entry);
@@ -203,8 +227,6 @@ export class TerminalService {
       this.workspace.runProject(id, async () => {
         let flushTimer;
         try {
-          if (!approved && this.mode(id) !== 'managed')
-            throw new Error('权限已改为手动确认，命令未执行。');
           const directory = await this.ensureDirectory(id),
             checked = await inspectCommand(run.command, directory);
           if (fingerprint(checked) !== run.fingerprint)
@@ -262,17 +284,20 @@ export class TerminalService {
       this.running.delete(id);
     });
   }
-  reject(id, runId) {
-    const run = this.get(id, runId);
-    if (run.status !== 'pending') throw new Error('命令已不在待确认状态。');
-    this.save({ ...run, status: 'rejected', finishedAt: stamp() });
-  }
   stop(id) {
-    this.store.db
+    this.store.projects.get(id);
+    for (const { id: runId } of this.store.db
       .prepare(
-        "UPDATE command_runs SET data=json_set(data, '$.autoApproved', json('false')) WHERE project_id=? AND json_extract(data, '$.status')='pending'",
+        "SELECT id FROM command_runs WHERE project_id=? AND json_extract(data, '$.status')='pending'",
       )
-      .run(id);
+      .all(id))
+      this.save({
+        ...this.get(id, runId),
+        autoApproved: false,
+        status: 'cancelled',
+        finishedAt: stamp(),
+        error: '命令队列已停止。',
+      });
     for (const review of this.reviews.values())
       if (review.projectId === id) review.controller.abort();
     const entry = this.running.get(id);
@@ -304,8 +329,22 @@ export class TerminalService {
   }
   async close() {
     this.closing = true;
-    for (const { controller } of this.reviews.values()) controller.abort();
-    for (const id of this.running.keys()) this.stop(id);
-    await Promise.allSettled([...this.running.values()].map((entry) => entry.done));
+    const reviews = [...this.reviews.values()];
+    for (const { controller } of reviews) controller.abort();
+    const projects = new Set([
+      ...this.running.keys(),
+      ...[...this.reviews.values()].map((review) => review.projectId),
+      ...this.store.db
+        .prepare(
+          "SELECT DISTINCT project_id FROM command_runs WHERE json_extract(data, '$.status')='pending'",
+        )
+        .all()
+        .map((row) => row.project_id),
+    ]);
+    for (const id of projects) this.stop(id);
+    await Promise.allSettled([
+      ...reviews.map((review) => review.done),
+      ...[...this.running.values()].map((entry) => entry.done),
+    ]);
   }
 }

@@ -55,6 +55,8 @@ function Modal({
     }, 0);
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll('.modalCard');
+      if (dialogs[dialogs.length - 1] !== modalCardRef.current) return;
       if (event.key === 'Escape' && dismissible) {
         onCloseRef.current();
         return;

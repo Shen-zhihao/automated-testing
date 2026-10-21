@@ -2,6 +2,7 @@ import { useProject } from '@/hooks/useProject';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { RequirementFeature } from '@project/shared-api';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import Select from '@/components/Select';
 export default function TaskForm({ onCreated }: { onCreated: (id: string) => void }) {
   const { api } = useProject();
   const { state, refresh } = useWorkspace();
@@ -28,7 +29,7 @@ export default function TaskForm({ onCreated }: { onCreated: (id: string) => voi
   }, [documentId]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!api || busy) return;
+    if (!api || busy || !documentId) return;
     setBusy(true);
     setError('');
     try {
@@ -50,34 +51,35 @@ export default function TaskForm({ onCreated }: { onCreated: (id: string) => voi
     <form className="testingForm" onSubmit={(event) => void submit(event)}>
       <label className="fullWidth">
         需求文档
-        <select
-          required
+        <Select
+          aria-label="需求文档"
           value={documentId}
-          onChange={(event) => {
-            setDocumentId(event.target.value);
+          onChange={(value) => {
+            setDocumentId(value);
             setFeatureId('');
           }}
-        >
-          <option value="">选择已分析的需求</option>
-          {state?.documents
-            .filter((doc) => doc.analyzed)
-            .map((doc) => (
-              <option key={doc.id} value={doc.id}>
-                {doc.name}
-              </option>
-            ))}
-        </select>
+          options={[
+            { value: '', label: '选择已分析的需求' },
+            ...(state?.documents
+              .filter((doc) => doc.analyzed)
+              .map((doc) => ({ value: doc.id, label: doc.name })) ?? []),
+          ]}
+        />
       </label>
       <label className="fullWidth">
         功能范围
-        <select value={featureId} onChange={(event) => setFeatureId(event.target.value)}>
-          <option value="">整份需求</option>
-          {features.map((feature) => (
-            <option key={feature.id} value={feature.id}>
-              {feature.id} {feature.title}
-            </option>
-          ))}
-        </select>
+        <Select
+          aria-label="功能范围"
+          value={featureId}
+          onChange={setFeatureId}
+          options={[
+            { value: '', label: '整份需求' },
+            ...features.map((feature) => ({
+              value: feature.id,
+              label: `${feature.id} ${feature.title}`,
+            })),
+          ]}
+        />
       </label>
       <label className="fullWidth">
         任务名称

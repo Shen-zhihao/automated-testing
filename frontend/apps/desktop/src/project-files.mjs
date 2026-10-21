@@ -131,6 +131,12 @@ export class ProjectFiles {
       ).run(source.id);
       for (const table of ['test_tasks', 'test_sessions'])
         db.prepare(`DELETE FROM ${table} WHERE json_extract(data, '$.sourceId')=?`).run(source.id);
+      db.prepare(
+        `DELETE FROM test_sessions WHERE EXISTS (
+          SELECT 1 FROM json_each(test_sessions.data, '$.messages') message,
+          json_each(message.value, '$.sourceIds') reference WHERE reference.value = ?
+        )`,
+      ).run(source.id);
       db.prepare('DELETE FROM test_sources WHERE id=?').run(source.id);
     }
   }

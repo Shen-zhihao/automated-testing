@@ -13,10 +13,6 @@ export function registerWorkspaceHandlers(workspace, development) {
     'command-info': (_, id) => workspace.terminal.info(id),
     'command-get': (_, id, runId) => workspace.terminal.publicRun(id, runId),
     'command-list': (_, id) => workspace.terminal.list(id),
-    'command-mode': (_, id, mode) => workspace.terminal.setMode(id, mode),
-    'command-propose': (_, id, input) => workspace.terminal.propose(id, input),
-    'command-start': (_, id, runId) => workspace.terminal.start(id, runId, true),
-    'command-reject': (_, id, runId) => workspace.terminal.reject(id, runId),
     'command-stop': (_, id) => workspace.terminal.stop(id),
     'command-directory': async (_, id) => {
       const error = await shell.openPath(await workspace.terminal.ensureDirectory(id));
@@ -42,7 +38,9 @@ export function registerWorkspaceHandlers(workspace, development) {
     'chat-create': (_, projectId, input) =>
       workspace.testing.createSession({ ...input, projectId }),
     'chat-get': (_, projectId, id) => workspace.testing.getSession(id),
-    'chat-send': (_, projectId, id, content) => workspace.testing.sendMessage(id, content),
+    'chat-delete': (_, projectId, id) => workspace.testing.deleteSession(id),
+    'chat-send': (_, projectId, id, content, documentIds) =>
+      workspace.testing.sendMessage(id, content, documentIds),
     'chat-keep': (_, projectId, id, messageId, taskId) =>
       workspace.testing.keepMessage(id, messageId, taskId),
     'testing-create': (_, projectId, input) =>
@@ -94,6 +92,7 @@ export function registerWorkspaceHandlers(workspace, development) {
         ),
       ),
     document: (_, projectId, id) => workspace.store.getDocument(id),
+    'analysis-draft': (_, projectId, id) => workspace.store.getAnalysisDraft(id),
     'import-files': async (event, projectId) => {
       const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
         title: '导入文档',
@@ -109,6 +108,7 @@ export function registerWorkspaceHandlers(workspace, development) {
     'delete-document': (_, projectId, id) =>
       workspace.projectFiles.clean(projectId, { documentIds: [id] }),
     analyze: (_, projectId, id, goal) => workspace.analyze(id, goal),
+    'revise-analysis': (_, projectId, id, goal) => workspace.reviseAnalysis(id, goal),
     'export-analysis': async (event, projectId, id) =>
       workspace.projectFiles.record(
         projectId,
@@ -157,6 +157,7 @@ export function registerWorkspaceHandlers(workspace, development) {
     'snapshot',
     'appearance-get',
     'document',
+    'analysis-draft',
     'cancel',
     'select-storage',
     'relocate-storage',
@@ -181,9 +182,7 @@ export function registerWorkspaceHandlers(workspace, development) {
         if (projectActions.has(name))
           assertProjectOperation(workspace.store, name, args[0], args.slice(1));
         let projectId = projectActions.has(name) && name !== 'delete-document' ? args[0] : null;
-        if (
-          ['project-update', 'project-files', 'command-propose', 'command-directory'].includes(name)
-        )
+        if (['project-update', 'project-files', 'command-directory'].includes(name))
           projectId = args[0];
         if (name.startsWith('command-')) workspace.store.projects.get(args[0]);
         if (name === 'testing-browser')

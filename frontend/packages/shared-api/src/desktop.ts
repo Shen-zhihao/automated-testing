@@ -53,10 +53,26 @@ export interface DocumentAnalysis {
   createdAt: string;
   segments: number;
 }
+export interface AnalysisDraftSection {
+  id: string;
+  featureId: string;
+  featureName: string;
+  title: string;
+  content: string;
+  status: 'complete' | 'partial' | 'revising';
+}
+export interface AnalysisDraft {
+  goal: string;
+  sections: AnalysisDraftSection[];
+  completed: number;
+  featureCount: number;
+  previous: AnalysisDraft | null;
+}
 export interface WorkspaceDocument extends Omit<DocumentSummary, 'characters' | 'analyzed'> {
   content: string;
   warnings: string[];
   analysis: DocumentAnalysis | null;
+  analysisDraft?: { goal: string } | null;
   preview: { format: 'html' | 'markdown' | 'text'; content: string } | null;
 }
 export interface FeishuStatus {
@@ -73,6 +89,8 @@ export interface FeishuSettingsInput {
 export interface AnalysisJob {
   status: 'running' | 'complete' | 'cancelled' | 'error';
   message: string;
+  goal?: string;
+  revision?: number;
 }
 export interface ProjectInput {
   name: string;
@@ -128,9 +146,8 @@ export interface ProjectCleanInput {
   exportIds?: string[];
   detach?: boolean;
 }
-export type CommandMode = 'manual' | 'managed';
 export interface TerminalInfo {
-  mode: CommandMode;
+  execution: 'background';
   shell: string;
   directory: string;
   platform: string;
@@ -161,20 +178,12 @@ export interface CommandRun {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
-  approval?: CommandMode;
+  execution?: 'background';
 }
 export interface ProjectBridge {
   terminalInfo(): Promise<TerminalInfo>;
   terminalRuns(): Promise<CommandRun[]>;
   terminalRun(id: string): Promise<CommandRun>;
-  setCommandMode(mode: CommandMode): Promise<TerminalInfo>;
-  proposeCommand(input: {
-    command: string;
-    reason: string;
-    sessionId?: string;
-  }): Promise<CommandRun>;
-  approveCommand(id: string): Promise<void>;
-  rejectCommand(id: string): Promise<void>;
   stopCommand(): Promise<void>;
   openCommandDirectory(): Promise<void>;
   listFiles(): Promise<ProjectFilesInfo>;
@@ -184,7 +193,8 @@ export interface ProjectBridge {
   testingFeatures(id: string): Promise<RequirementFeature[]>;
   createChat(input: CreateWorkInput): Promise<WorkChat>;
   getChat(id: string): Promise<WorkChat>;
-  sendChat(id: string, content: string): Promise<WorkChat>;
+  deleteChat(id: string): Promise<void>;
+  sendChat(id: string, content: string, documentIds?: string[]): Promise<WorkChat>;
   keepChatMessage(id: string, messageId: string, taskId?: string): Promise<WorkTestTask>;
   createTestTask(input: CreateWorkInput): Promise<WorkTestTask>;
   getTestTask(id: string): Promise<WorkTestTask>;
@@ -198,11 +208,13 @@ export interface ProjectBridge {
   runTestPlan(id: string): Promise<WorkTestTask>;
   exportTestDocument(id: string): Promise<string | null>;
   getDocument(id: string): Promise<WorkspaceDocument>;
+  getAnalysisDraft(id: string): Promise<AnalysisDraft | null>;
   importFiles(): Promise<{ imported: string[]; errors: { name: string; message: string }[] }>;
   importFeishu(url: string): Promise<string>;
   refreshDocument(id: string): Promise<{ document: WorkspaceDocument; contentChanged: boolean }>;
   deleteDocument(id: string): Promise<void>;
   analyze(id: string, goal: string): Promise<DocumentAnalysis>;
+  reviseAnalysis(id: string, goal: string): Promise<void>;
   exportAnalysis(id: string): Promise<string | null>;
   cancelAnalysis(id: string): Promise<void>;
   renameChat(id: string, title: string): Promise<WorkChat>;

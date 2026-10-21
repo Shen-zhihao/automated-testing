@@ -127,6 +127,8 @@ test('lists, jobs and direct resource actions stay inside the selected project',
   assert.equal(workspace.snapshot(a).jobs[two.doc.id], undefined);
   for (const [action, args] of [
     ['document', [two.doc.id]],
+    ['analysis-draft', [two.doc.id]],
+    ['revise-analysis', [two.doc.id, '补充要求']],
     ['chat-get', [two.chat.id]],
     ['testing-run', [two.task.id]],
     ['chat-create', [{ documentId: two.doc.id }]],
@@ -135,6 +137,27 @@ test('lists, jobs and direct resource actions stay inside the selected project',
   ])
     assert.throws(() => assertProjectOperation(store, action, a, args), /不属于/);
   assertProjectOperation(store, 'document', a, [one.doc.id]);
+});
+
+test('document cleanup also removes chats that referenced it later while preserving unreferenced chats', async (t) => {
+  const { a, add, workspace, testing } = setup(t);
+  const { doc, chat: original } = add(a);
+  const direct = testing.createSession({ projectId: a });
+  const unrelated = testing.createSession({ projectId: a });
+  testing.db.saveSession({
+    ...testing.db.session(direct.id),
+    messages: [
+      {
+        id: 'reference-message',
+        role: 'user',
+        content: '讨论需求',
+        sourceIds: [original.sourceId],
+      },
+    ],
+  });
+  await workspace.projectFiles.clean(a, { documentIds: [doc.id] });
+  assert.throws(() => testing.getSession(direct.id), /不存在/);
+  assert.equal(testing.getSession(unrelated.id).source, null);
 });
 
 test('an import retains its captured project while another project becomes active', async (t) => {

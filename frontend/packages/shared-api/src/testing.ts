@@ -10,6 +10,7 @@ export interface RequirementReference {
   analysisCreatedAt: string;
   features: RequirementFeature[];
   changed: boolean;
+  warnings?: string[];
 }
 export interface WorkChatMessage {
   commandIds?: string[];
@@ -20,18 +21,19 @@ export interface WorkChatMessage {
   createdAt: string;
   status: 'complete' | 'error';
   excerpts?: { id: string; text: string }[];
+  references?: RequirementReference[];
 }
 export interface WorkChatSummary {
   projectId: string;
   id: string;
   title: string;
-  sourceId: string;
+  sourceId: string | null;
   featureId: string;
   taskId: string | null;
   updatedAt: string;
 }
 export interface WorkChat extends WorkChatSummary {
-  source: RequirementReference;
+  source: RequirementReference | null;
   messages: WorkChatMessage[];
 }
 export interface TaskNote {

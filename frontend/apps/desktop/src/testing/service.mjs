@@ -1,5 +1,11 @@
 import { TestingStore, extractFeatures, newId, now } from './store.mjs';
-import { answerChat, generateTestDocument, renderTestDocument, textField } from './model.mjs';
+import {
+  answerChat,
+  generateTestDocument,
+  parseChatReply,
+  renderTestDocument,
+  textField,
+} from './model.mjs';
 import {
   executePlan,
   planBrowserTests,
@@ -65,7 +71,23 @@ export class TestingService {
   }
   getSession(id) {
     const session = this.db.session(id);
-    return { ...session, source: this.sourceState(session.sourceId) };
+    const references = new Map();
+    const reference = (sourceId) => {
+      if (!references.has(sourceId)) references.set(sourceId, this.sourceState(sourceId));
+      return references.get(sourceId);
+    };
+    return {
+      ...session,
+      source: session.sourceId ? reference(session.sourceId) : null,
+      messages: session.messages.map((message) => ({
+        ...message,
+        content:
+          message.role === 'assistant' ? parseChatReply(message.content).content : message.content,
+        references: (message.sourceIds ?? (session.sourceId ? [session.sourceId] : [])).map(
+          reference,
+        ),
+      })),
+    };
   }
   getTask(id) {
     const task = this.db.task(id);
@@ -222,24 +244,28 @@ export class TestingService {
     this.retiredBrowsers.delete(id);
     return browser;
   }
-  createSession(input) {
-    let source,
+  createSession(input = {}) {
+    let source = null,
       task = null;
     if (input.taskId) {
       task = this.db.task(input.taskId);
       source = this.db.source(task.sourceId);
-    } else source = this.db.snapshot(this.store.getDocument(input.documentId));
-    if (input.projectId && input.projectId !== source.projectId)
-      throw new Error('需求不属于当前工程。');
+    } else if (input.documentId)
+      source = this.db.snapshot(this.store.getDocument(input.documentId), {
+        requireAnalysis: false,
+      });
+    const projectId = input.projectId || source?.projectId || DEFAULT_PROJECT_ID;
+    this.store.projects.get(projectId);
+    if (source && projectId !== source.projectId) throw new Error('需求不属于当前工程。');
     const featureId = task?.featureId || input.featureId || '';
-    if (featureId && !source.features.some((feature) => feature.id === featureId))
+    if (featureId && !source?.features.some((feature) => feature.id === featureId))
       throw new Error('此分析中不存在所选功能，请重新选择。');
-    const feature = source.features.find((item) => item.id === featureId);
+    const feature = source?.features.find((item) => item.id === featureId);
     const value = this.db.saveSession({
       id: newId(),
-      projectId: source.projectId,
-      title: task?.name || feature?.title || `${source.name} · 测试讨论`,
-      sourceId: source.id,
+      projectId,
+      title: task?.name || feature?.title || (source ? `${source.name} · 测试讨论` : '新对话'),
+      sourceId: source?.id || null,
       featureId,
       taskId: task?.id || null,
       createdAt: now(),
@@ -256,26 +282,59 @@ export class TestingService {
     this.notify();
     return this.getSession(id);
   }
-  async sendMessage(id, content) {
+  deleteSession(id) {
+    const key = `chat:${id}`;
+    this.assertIdle(key);
+    this.db.deleteSession(id);
+    this.jobs.delete(key);
+    this.notify();
+  }
+  async sendMessage(id, content, documentIds) {
     const text = textField(content, '消息', 12000);
+    if (
+      documentIds !== undefined &&
+      (!Array.isArray(documentIds) ||
+        documentIds.length > 5 ||
+        documentIds.some((documentId) => typeof documentId !== 'string' || !documentId))
+    )
+      throw new Error('每轮最多引用 5 份文档。');
     return this.job(`chat:${id}`, 'chat', async (signal, progress) => {
-      const session = this.db.session(id),
-        source = this.db.source(session.sourceId);
+      const session = this.db.session(id);
+      const documents = [...new Set(documentIds || [])].map((documentId) => {
+        const document = this.store.getDocument(documentId);
+        if (document.projectId !== session.projectId) throw new Error('引用文档不属于当前工程。');
+        return document;
+      });
       const config = await this.settings.modelConfig();
-      source.project = this.store.projects.get(session.projectId);
-      source.projectDocuments = this.store
-        .listDocuments(session.projectId)
-        .map(({ name, analyzed }) => ({ name, analyzed }));
+      signal.throwIfAborted();
+      const sources =
+        documentIds === undefined
+          ? session.sourceId
+            ? [this.db.source(session.sourceId)]
+            : []
+          : documents.map((document) => this.db.snapshot(document, { requireAnalysis: false }));
+      const sourceIds = sources.map((source) => source.id);
+      const source = {
+        references: sources,
+        project: this.store.projects.get(session.projectId),
+        projectDocuments: this.store
+          .listDocuments(session.projectId)
+          .map(({ name, analyzed }) => ({ name, analyzed })),
+      };
+      if (!session.messages.length && session.title === '新对话')
+        session.title = text.replace(/\s+/g, ' ').slice(0, 60);
       session.messages.push({
         id: newId(),
         role: 'user',
         content: text,
         createdAt: now(),
         status: 'complete',
+        sourceIds,
       });
       session.updatedAt = now();
       this.db.saveSession(session);
-      progress('正在结合需求与讨论回答…');
+      progress(sources.length ? '正在结合引用资料与讨论回答…' : '正在回答…');
+      const commandIds = [];
       try {
         if (session.taskId) {
           const task = this.db.task(session.taskId);
@@ -303,18 +362,48 @@ export class TestingService {
                 error: run.error,
               })),
           });
-        const answer = await answerChat(source, session, config, {
+        let answer = await answerChat(source, session, config, {
           signal,
           fetchImpl: this.fetchImpl,
         });
         signal.throwIfAborted();
-        const commandIds = [];
         for (const proposal of answer.commands || []) {
           signal.throwIfAborted();
           if (this.terminal)
             commandIds.push(
-              (await this.terminal.propose(session.projectId, { ...proposal, sessionId: id })).id,
+              (
+                await this.terminal.propose(
+                  session.projectId,
+                  { ...proposal, sessionId: id },
+                  { signal },
+                )
+              ).id,
             );
+        }
+        if (commandIds.length) {
+          progress('正在后台执行工程命令…');
+          const results = await Promise.all(
+            commandIds.map((runId) => this.terminal.wait(session.projectId, runId, signal)),
+          );
+          signal.throwIfAborted();
+          progress('正在整理命令执行结果…');
+          answer = await answerChat(
+            source,
+            {
+              ...session,
+              commandResults: results.map((run) => ({
+                command: run.command,
+                status: run.status,
+                exitCode: run.exitCode,
+                output: redact(run.output, [config.apiKey]).slice(-12000),
+                truncated: run.truncated || run.output.length > 12000,
+                error: redact(run.error, [config.apiKey]),
+              })),
+            },
+            config,
+            { signal, fetchImpl: this.fetchImpl },
+          );
+          signal.throwIfAborted();
         }
         const latest = this.db.session(id);
         latest.messages.push({
@@ -324,6 +413,7 @@ export class TestingService {
           refused: Boolean(answer.refused),
           content: answer.content,
           excerpts: answer.excerpts,
+          sourceIds,
           createdAt: now(),
           status: 'complete',
         });
@@ -331,13 +421,20 @@ export class TestingService {
         this.db.saveSession(latest);
         return this.getSession(id);
       } catch (error) {
+        if (signal.aborted && commandIds.length) this.terminal?.stop(session.projectId);
         const latest = this.db.session(id);
         latest.messages.push({
           id: newId(),
           role: 'assistant',
-          content: signal.aborted ? '回答已取消，可继续提问。' : '本次回答失败，请重试。',
+          commandIds,
+          content: signal.aborted
+            ? '回答已取消，可继续提问。'
+            : commandIds.length
+              ? '后台命令已有执行记录，本次结果整理失败，可展开记录查看。'
+              : '本次回答失败，请重试。',
           createdAt: now(),
           status: 'error',
+          sourceIds,
         });
         latest.updatedAt = now();
         this.db.saveSession(latest);
@@ -345,14 +442,20 @@ export class TestingService {
       }
     });
   }
-  createTask(input) {
+  createTask(input, retainedSourceId) {
     const session = input.sessionId ? this.db.session(input.sessionId) : null;
-    const source = session
-      ? this.db.source(session.sourceId)
+    const sourceId = retainedSourceId || session?.sourceId;
+    if (session && !sourceId) throw new Error('请引用需求文档后，再将回复保留到测试任务。');
+    const source = sourceId
+      ? this.db.source(sourceId)
       : this.db.snapshot(this.store.getDocument(input.documentId));
+    if (session && session.projectId !== source.projectId) throw new Error('需求不属于当前工程。');
     if (input.projectId && input.projectId !== source.projectId)
       throw new Error('需求不属于当前工程。');
-    const featureId = session?.featureId || input.featureId || '';
+    const featureId =
+      retainedSourceId && retainedSourceId !== session?.sourceId
+        ? ''
+        : session?.featureId || input.featureId || '';
     const feature = source.features.find((item) => item.id === featureId);
     if (featureId && !feature) throw new Error('功能编号与需求分析不匹配。');
     const name = textField(input.name || feature?.title || source.name, '任务名称', 160);
@@ -387,23 +490,26 @@ export class TestingService {
       (item) => item.id === messageId && item.role === 'assistant' && item.status === 'complete',
     );
     if (!message || message.refused) throw new Error('只能保留已完成且与工程相关的助手回复。');
+    const sourceId = message.sourceIds?.[0] || (message.sourceIds ? null : session.sourceId);
+    if (!sourceId) throw new Error('此回复未引用需求文档，请引用文档后重新提问。');
     let task;
-    const target = taskId || session.taskId;
+    const associated = session.taskId ? this.db.task(session.taskId) : null;
+    const target = taskId ?? (associated?.sourceId === sourceId ? associated.id : null);
     if (target) {
       this.assertIdle(`task:${target}`);
       task = this.db.task(target);
     } else {
-      const created = this.createTask({ sessionId });
+      const created = this.createTask({ sessionId }, sourceId);
       task = this.db.task(created.id);
     }
-    if (task.sourceId !== session.sourceId)
+    if (task.sourceId !== sourceId)
       throw new Error('此任务属于其他需求版本，请新建任务以保留来源。');
     if (!task.notes.some((note) => note.messageId === messageId)) {
       task.notes.push({
         id: newId(),
         sessionId,
         messageId,
-        content: message.content,
+        content: parseChatReply(message.content).content,
         createdAt: now(),
       });
       task.revision++;

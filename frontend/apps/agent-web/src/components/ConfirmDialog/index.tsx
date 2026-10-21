@@ -46,11 +46,11 @@ function ConfirmDialog({
       initialFocusRef={cancelRef}
       onClose={onCancel}
       footer={
-        <div className="confirmActions">
+        <>
           <button
             ref={cancelRef}
             type="button"
-            className="btn cancel"
+            className="workButton"
             onClick={onCancel}
             disabled={loading}
           >
@@ -58,13 +58,13 @@ function ConfirmDialog({
           </button>
           <button
             type="button"
-            className={`btn ${danger ? 'danger' : 'primary'}`}
+            className={`workButton ${danger ? 'danger' : 'primary'}`}
             onClick={onConfirm}
             disabled={loading}
           >
             {loading ? '处理中...' : confirmText}
           </button>
-        </div>
+        </>
       }
     >
       {content && <div className="confirmContent">{content}</div>}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
+import { parseChatReply } from '../src/testing/model.mjs';
 
 test('closed execution histories omit evidence DOM; running records show it, and Markdown remains safe', async (t) => {
   const root = fileURLToPath(new URL('../../agent-web/', import.meta.url));
@@ -63,4 +64,18 @@ test('closed execution histories omit evidence DOM; running records show it, and
   );
   assert.match(html, /href="https:\/\/example.com"/);
   assert.doesNotMatch(html, /<img\b|<script\b|href="javascript:/i);
+  const markdown =
+    '## 直接结论\n\n| 场景 | 工期 |\n| --- | --- |\n| 基准 | **4–6 周** |\n\n- 确认排期\n\n```js\nconst retries = 3;\n```';
+  const formatted = renderToStaticMarkup(
+    React.createElement(Renderer, {
+      content: parseChatReply(JSON.stringify({ answer: markdown })).content,
+      openBrowser: async () => {},
+    }),
+  );
+  assert.match(formatted, /<h2>直接结论<\/h2>/);
+  assert.match(formatted, /<table>/);
+  assert.match(formatted, /<strong>4–6 周<\/strong>/);
+  assert.match(formatted, /<li>确认排期<\/li>/);
+  assert.match(formatted, /<pre><code class="language-js">/);
+  assert.doesNotMatch(formatted, /&quot;answer&quot;|\\n/);
 });

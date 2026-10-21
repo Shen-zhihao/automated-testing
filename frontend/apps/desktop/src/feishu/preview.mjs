@@ -42,10 +42,12 @@ function inline(text) {
     .join('');
 }
 
-export function renderFeishuBlocks(blocks, documentId, title, warnings) {
+export function renderFeishuBlocks(blocks, documentId, title, warnings, images = new Map()) {
   const byId = new Map(blocks.map((block) => [block.block_id, block]));
   const visiting = new Set();
   const unsupported = new Set();
+  let imageCharacters = 0;
+  let oversizedImages = false;
   const typeOf = (block) => textTypes.find((type) => block[type]);
   const renderChildren = (ids, depth) => {
     let html = '',
@@ -129,6 +131,20 @@ export function renderFeishuBlocks(blocks, documentId, title, warnings) {
         return `<p${attributes}>${value || '<br>'}</p>${children()}`;
       }
       if (block.divider) return '<hr>';
+      if (block.image) {
+        const image = images.get(block.image.token);
+        if (image?.src) {
+          // 同一素材多次出现也计入预览体积，为正文结构留出空间。
+          imageCharacters += image.src.length;
+          if (imageCharacters <= 7 * 1024 * 1024) {
+            const width = Number(block.image.width);
+            return `<p><img src="${escapeHtml(image.src)}" alt="飞书文档图片"${Number.isInteger(width) && width > 0 && width <= 20000 ? ` width="${width}"` : ''}></p>${children()}`;
+          }
+          oversizedImages = true;
+        }
+        if (image)
+          return `<p><em>[图片未展开：${escapeHtml(image.error || '图片重复展示超过本地预览大小上限')}，请查看飞书原文]</em></p>${children()}`;
+      }
       if (
         block.table_cell ||
         block.grid ||
@@ -163,5 +179,7 @@ export function renderFeishuBlocks(blocks, documentId, title, warnings) {
       )}`;
   if (unsupported.size)
     warnings.push(`已保留文档结构；${[...unsupported].join('、')}未展开，请对照飞书原文。`);
+  if (oversizedImages)
+    warnings.push('图片重复展示超过本地预览大小上限，部分图片以位置说明显示，请对照飞书原文。');
   return htmlPreview(html, warnings);
 }

@@ -173,7 +173,7 @@
   border-left: 1px solid var(--border);
   display: grid;
   gap: 3px;
-  a {
+  > a {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -182,7 +182,7 @@
     color: var(--text-secondary);
     font-size: 12px;
   }
-  & a.active {
+  > a.active {
     color: var(--text-accent);
     background: var(--surface-tertiary);
     font-weight: 600;
@@ -405,6 +405,7 @@
   .sidebarCount,
   .sidebarLabel,
   .sidebarSearch,
+  .sidebarDocumentLibrary,
   .sidebarEmpty,
   .localStatus {
     display: none;

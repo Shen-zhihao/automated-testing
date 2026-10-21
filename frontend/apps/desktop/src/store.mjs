@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { analysisDraftView } from './analysis-draft.mjs';
 import { DEFAULT_PROJECT_ID, migrateProjects, ProjectStore } from './projects.mjs';
 
 export class WorkspaceStore {
@@ -14,7 +15,7 @@ export class WorkspaceStore {
       'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000; PRAGMA secure_delete = ON;',
     );
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 8) {
+    if (version > 9) {
       this.db.close();
       throw new Error('本地数据由更新版本创建，请升级应用后打开。');
     }
@@ -78,6 +79,13 @@ export class WorkspaceStore {
       CREATE INDEX command_runs_project ON command_runs (project_id, created_at DESC, id DESC);
       CREATE INDEX command_runs_status ON command_runs (json_extract(data, '$.status'), created_at, id);
       PRAGMA user_version = 8; COMMIT;`);
+    if (version < 9)
+      this.db.exec(`BEGIN;
+      CREATE TABLE IF NOT EXISTS analysis_checkpoints (
+        document_id TEXT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+        data TEXT NOT NULL
+      );
+      PRAGMA user_version = 9; COMMIT;`);
     this.projects = new ProjectStore(this);
   }
 
@@ -117,6 +125,7 @@ export class WorkspaceStore {
       warnings: JSON.parse(row.warnings),
       analysis: row.analysis ? JSON.parse(row.analysis) : null,
       preview: row.preview ? JSON.parse(row.preview) : null,
+      analysisDraft: this.analysisDraft(id),
     };
   }
 
@@ -169,14 +178,53 @@ export class WorkspaceStore {
         new Date().toISOString(),
         id,
       );
+    if (previous.content !== content) this.clearAnalysisCheckpoint(id);
     return this.getDocument(id);
+  }
+
+  readAnalysisCheckpoint(id) {
+    const row = this.db
+      .prepare('SELECT data FROM analysis_checkpoints WHERE document_id = ?')
+      .get(id);
+    return row ? JSON.parse(row.data) : null;
+  }
+
+  analysisDraft(id) {
+    const row = this.db
+      .prepare(
+        `SELECT json_extract(data, '$.goal') AS goal FROM analysis_checkpoints WHERE document_id = ?`,
+      )
+      .get(id);
+    return row ? { goal: row.goal } : null;
+  }
+
+  getAnalysisDraft(id) {
+    return analysisDraftView(this.readAnalysisCheckpoint(id));
+  }
+
+  saveAnalysisCheckpoint(id, checkpoint) {
+    this.db
+      .prepare('INSERT OR REPLACE INTO analysis_checkpoints (document_id, data) VALUES (?, ?)')
+      .run(id, JSON.stringify(checkpoint));
+  }
+
+  clearAnalysisCheckpoint(id) {
+    this.db.prepare('DELETE FROM analysis_checkpoints WHERE document_id = ?').run(id);
   }
 
   saveAnalysis(id, analysis) {
     this.getDocument(id);
-    this.db
-      .prepare('UPDATE documents SET analysis = ?, updated_at = ? WHERE id = ?')
-      .run(JSON.stringify(analysis), new Date().toISOString(), id);
+    this.db.exec('SAVEPOINT save_analysis');
+    try {
+      this.db
+        .prepare('UPDATE documents SET analysis = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(analysis), new Date().toISOString(), id);
+      this.clearAnalysisCheckpoint(id);
+      this.db.exec('RELEASE save_analysis');
+    } catch (error) {
+      this.db.exec('ROLLBACK TO save_analysis; RELEASE save_analysis');
+      throw error;
+    }
   }
 
   deleteDocument(id) {

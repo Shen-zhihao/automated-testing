@@ -37,6 +37,11 @@ test('migration includes WAL, previews, reports and encrypted settings; restart 
     preview: { format: 'html', content: '<table><tr><td>需求</td></tr></table>' },
   });
   store.saveAnalysis(doc.id, { content: '已有分析' });
+  store.saveAnalysisCheckpoint(doc.id, {
+    goal: '边界规则',
+    fingerprint: 'fixture',
+    steps: { read: { text: '已完成阅读', complete: true } },
+  });
   const original = store.getDocument(doc.id);
   await service.relocate(target);
   assert.equal(
@@ -47,6 +52,7 @@ test('migration includes WAL, previews, reports and encrypted settings; restart 
   assert.deepEqual(store.getDocument(doc.id), original);
   assert.equal(store.readSettings().apiKey, 'encrypted-fixture');
   assert.equal(store.readSettings().feishu.appSecret, 'encrypted-app-fixture');
+  assert.equal(store.readAnalysisCheckpoint(doc.id).steps.read.text, '已完成阅读');
   store.addDocument({ name: '迁移后', source: 'fixture', kind: 'txt', content: '新数据' });
   const old = new WorkspaceStore(oldFile);
   assert.equal(old.listDocuments().length, 1);

@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo } from 'react';
 import createDOMPurify from 'dompurify';
 import type { WorkspaceDocument } from '@project/shared-api';
 import MarkdownContent from '@/components/MarkdownContent';
@@ -52,7 +52,6 @@ export default memo(function SourcePreview({ document }: { document: WorkspaceDo
   const { appearance } = useAppearance();
   // Native prefers-color-scheme updates within the scriptless iframe without reloading it.
   const previewTheme = window.desktop?.getAppearance ? '' : appearance.theme;
-  const [plain, setPlain] = useState(false);
   const preview =
     document.preview ??
     (['md', 'markdown'].includes(document.kind)
@@ -140,21 +139,7 @@ export default memo(function SourcePreview({ document }: { document: WorkspaceDo
   }, [preview?.format, preview?.content, previewTheme]);
   return (
     <div className="sourcePreview">
-      {preview && (
-        <div className="sourcePreviewModes" aria-label="原文显示方式">
-          <button
-            className="workButton subtle"
-            aria-pressed={!plain}
-            onClick={() => setPlain(false)}
-          >
-            格式预览
-          </button>
-          <button className="workButton subtle" aria-pressed={plain} onClick={() => setPlain(true)}>
-            纯文字
-          </button>
-        </div>
-      )}
-      {!preview || plain ? (
+      {!preview ? (
         <pre>{document.content}</pre>
       ) : preview.format === 'html' ? (
         <iframe title="文档原文格式预览" sandbox="" referrerPolicy="no-referrer" srcDoc={html} />

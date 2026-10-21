@@ -37,7 +37,7 @@ async function setup(t, options = {}) {
   return { root, store, workspace, terminal, a, b };
 }
 
-test('manual commands need exact approval and cannot be replayed, edited or approved from another project', async (t) => {
+test('reviewed commands execute silently and cannot be replayed or accessed from another project', async (t) => {
   let executed = 0;
   const { a, b, terminal } = await setup(t, {
     execute: ({ tokens, onOutput }) => {
@@ -48,33 +48,29 @@ test('manual commands need exact approval and cannot be replayed, edited or appr
     },
   });
   const run = await terminal.propose(a, { command: 'echo 工程测试', reason: '检查本工程测试输出' });
-  assert.equal(run.status, 'pending');
-  assert.equal(executed, 0);
   assert.throws(() => terminal.start(b, run.id), /不属于/);
-  terminal.start(a, run.id, true);
-  await terminal.running.get(a).done;
+  const result = await terminal.wait(a, run.id);
   assert.equal(executed, 1);
   assert.equal(terminal.get(a, run.id).status, 'passed');
   assert.match(terminal.get(a, run.id).output, /成功/);
-  assert.throws(() => terminal.start(a, run.id, true), /待确认/);
+  assert.equal(result.execution, 'background');
+  assert.throws(() => terminal.start(a, run.id), /排队/);
   assert.equal(terminal.list(b).length, 0);
   assert.equal('fingerprint' in terminal.list(a)[0], false);
 });
 
-test('managed mode executes new reviewed commands, preserves old pending commands, and enforces local and model denials', async (t) => {
+test('background execution ignores obsolete permission settings while retaining local and model denials', async (t) => {
   let executed = 0;
-  const { a, terminal, workspace } = await setup(t, {
+  const { a, terminal, workspace, store } = await setup(t, {
     execute: () => {
       executed++;
       return { done: Promise.resolve({ code: 0 }), stop() {} };
     },
   });
-  const pending = await terminal.propose(a, { command: 'pwd', reason: '确认测试工程工作目录' });
-  terminal.setMode(a, 'managed');
-  assert.equal(terminal.get(a, pending.id).status, 'pending');
-  assert.equal(executed, 0);
+  store.db.prepare('INSERT INTO command_settings VALUES (?, ?)').run(a, 'manual');
+  assert.equal(terminal.info(a).execution, 'background');
   const run = await terminal.propose(a, { command: 'echo 测试', reason: '检查工程命令执行能力' });
-  await terminal.running.get(a)?.done;
+  await terminal.wait(a, run.id);
   assert.equal(terminal.get(a, run.id).status, 'passed');
   assert.equal(executed, 1);
   for (const command of [
@@ -100,25 +96,36 @@ test('managed mode executes new reviewed commands, preserves old pending command
   assert.equal(executed, 1);
 });
 
-test('approval rechecks scripts, prevents symlink escape and rejects changed files', async (t) => {
+test('queued commands recheck scripts and prevent changed files or symlink escape', async (t) => {
   let executed = 0;
+  let finish;
+  const started = Promise.withResolvers();
   const { a, terminal, root } = await setup(t, {
     execute: () => {
       executed++;
-      return { done: Promise.resolve({ code: 0 }), stop() {} };
+      started.resolve();
+      return {
+        done: new Promise((resolve) => {
+          finish = resolve;
+        }),
+        stop: () => finish({ code: null, cancelled: true }),
+      };
     },
   });
   const directory = await terminal.ensureDirectory(a);
   await writeFile(path.join(directory, 'test.mjs'), 'console.log("old")');
+  const first = await terminal.propose(a, { command: 'echo hold', reason: '检查本工程执行队列' });
+  await started.promise;
   const pending = await terminal.propose(a, {
     command: 'node test.mjs',
     reason: '运行计数验收测试',
   });
   assert.equal(pending.status, 'pending');
   await writeFile(path.join(directory, 'test.mjs'), 'console.log("changed")');
-  terminal.start(a, pending.id, true);
-  await terminal.running.get(a).done;
-  assert.equal(executed, 0);
+  finish({ code: 0 });
+  await terminal.wait(a, first.id);
+  await terminal.wait(a, pending.id);
+  assert.equal(executed, 1);
   assert.match(terminal.get(a, pending.id).error, /变化/);
   const outside = path.join(root, 'private.txt');
   await writeFile(outside, 'external');
@@ -145,7 +152,6 @@ test('running commands block cleanup, cancellation records state and project del
   const directory = await terminal.ensureDirectory(a);
   await writeFile(path.join(directory, 'generated.md'), '测试报告');
   const pending = await terminal.propose(a, { command: 'echo 测试', reason: '测试工程运行状态' });
-  terminal.start(a, pending.id);
   await ready;
   await assert.rejects(workspace.projectFiles.remove(a, '计数测试'), /等待/);
   const done = terminal.running.get(a).done;
@@ -168,8 +174,7 @@ test('command output is bounded and list payloads do not duplicate large logs', 
     },
   });
   const run = await terminal.propose(a, { command: 'echo 测试', reason: '验收日志输出边界' });
-  terminal.start(a, run.id);
-  await terminal.running.get(a).done;
+  await terminal.wait(a, run.id);
   assert.equal(terminal.get(a, run.id).output.length, 128 * 1024);
   assert.equal(terminal.get(a, run.id).truncated, true);
   assert.equal(terminal.list(a)[0].output.length, 500);
@@ -224,7 +229,7 @@ test('Windows uses ComSpec without autorun; command environments exclude inherit
   assert.deepEqual(commandTokens('node "tests/计数 验收.mjs"'), ['node', 'tests/计数 验收.mjs']);
 });
 
-test('managed commands queue per project; stopping leaves the remaining queue for manual review', async (t) => {
+test('background commands queue per project and stopping cancels the remaining queue', async (t) => {
   const controls = [];
   const started = [Promise.withResolvers(), Promise.withResolvers()];
   const { a, terminal } = await setup(t, {
@@ -238,7 +243,6 @@ test('managed commands queue per project; stopping leaves the remaining queue fo
       return { done, stop: () => finish({ code: null, cancelled: true }) };
     },
   });
-  terminal.setMode(a, 'managed');
   const first = await terminal.propose(a, { command: 'echo one', reason: '工程验收第一步' });
   const second = await terminal.propose(a, { command: 'echo two', reason: '工程验收第二步' });
   assert.equal(terminal.get(a, first.id).status, 'running');
@@ -254,6 +258,99 @@ test('managed commands queue per project; stopping leaves the remaining queue fo
   terminal.stop(a);
   await secondDone;
   assert.equal(terminal.get(a, second.id).status, 'cancelled');
-  assert.equal(terminal.get(a, third.id).status, 'pending');
+  assert.equal(terminal.get(a, third.id).status, 'cancelled');
   assert.equal(controls.length, 2);
+});
+
+test('aborting a chat wait stops the process and removes its result listener', async (t) => {
+  const started = Promise.withResolvers();
+  let finish;
+  const { a, terminal } = await setup(t, {
+    execute: () => {
+      started.resolve();
+      return {
+        done: new Promise((resolve) => {
+          finish = resolve;
+        }),
+        stop: () => finish({ code: null, cancelled: true }),
+      };
+    },
+  });
+  const run = await terminal.propose(a, { command: 'echo testing', reason: '检查工程执行取消' });
+  await started.promise;
+  const done = terminal.running.get(a).done;
+  const controller = new AbortController();
+  const waiting = terminal.wait(a, run.id, controller.signal);
+  controller.abort();
+  await assert.rejects(waiting, /abort/i);
+  await done;
+  assert.equal(terminal.get(a, run.id).status, 'cancelled');
+  assert.equal(terminal.changes.listenerCount(run.id), 0);
+});
+
+test('closing waits for cancelled command reviews to finish saving their final state', async (t) => {
+  const { a, terminal, workspace } = await setup(t);
+  const reviewing = Promise.withResolvers();
+  const cancelled = Promise.withResolvers();
+  let release;
+  workspace.fetchImpl = async (_, options) => {
+    reviewing.resolve();
+    return new Promise((_, reject) => {
+      options.signal.addEventListener(
+        'abort',
+        () => {
+          release = () => reject(new Error('cancelled'));
+          cancelled.resolve();
+        },
+        { once: true },
+      );
+    });
+  };
+  const proposed = terminal.propose(a, { command: 'pwd', reason: '检查工程关闭时的审查状态' });
+  await reviewing.promise;
+  let closed = false;
+  const closing = terminal.close().then(() => {
+    closed = true;
+  });
+  await cancelled.promise;
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(closed, false);
+    assert.equal(terminal.reviews.size, 1);
+    await assert.rejects(
+      terminal.propose(a, { command: 'pwd', reason: '关闭后不再创建命令' }),
+      /关闭/,
+    );
+  } finally {
+    release();
+    await Promise.allSettled([proposed, closing]);
+  }
+  assert.equal((await proposed).status, 'cancelled');
+  assert.equal(terminal.reviews.size, 0);
+  assert.equal(closed, true);
+});
+
+test('startup retains old pending records as interrupted instead of silently resuming them', async (t) => {
+  let executed = 0;
+  const { a, terminal, workspace, root } = await setup(t);
+  terminal.save({
+    id: 'legacy-pending',
+    projectId: a,
+    createdAt: '2026-10-21',
+    status: 'pending',
+    autoApproved: true,
+    command: 'pwd',
+    output: '',
+  });
+  const reopened = new TerminalService(workspace, {
+    root,
+    execute: () => {
+      executed++;
+      throw new Error('must not resume');
+    },
+  });
+  reopened.drain();
+  assert.equal(reopened.get(a, 'legacy-pending').status, 'interrupted');
+  assert.equal(executed, 0);
+  await reopened.close();
 });

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkspaceDocument, RequirementFeature } from '@project/shared-api';
 import MarkdownContent from '@/components/MarkdownContent';
+import Select from '@/components/Select';
 import './index.less';
 
 export default function AnalysisReport({
@@ -99,18 +100,18 @@ export default function AnalysisReport({
       <div className="testActions" style={{ margin: '12px 0 20px' }}>
         <label className="testMuted">
           讨论或测试范围{' '}
-          <select
+          <Select
             aria-label="分析功能范围"
             value={featureId}
-            onChange={(event) => setFeatureId(event.target.value)}
-          >
-            <option value="">整份需求</option>
-            {features.map((feature) => (
-              <option key={feature.id} value={feature.id}>
-                {feature.id} {feature.title}
-              </option>
-            ))}
-          </select>
+            onChange={setFeatureId}
+            options={[
+              { value: '', label: '整份需求' },
+              ...features.map((feature) => ({
+                value: feature.id,
+                label: `${feature.id} ${feature.title}`,
+              })),
+            ]}
+          />
         </label>
         <button
           className="workButton"

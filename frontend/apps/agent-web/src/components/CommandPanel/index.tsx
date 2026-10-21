@@ -4,8 +4,8 @@ import { useProject } from '@/hooks/useProject';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import './index.less';
 const statusNames: Record<CommandRun['status'], string> = {
-  reviewing: '安全审查中',
-  pending: '等待确认',
+  reviewing: '准备执行',
+  pending: '排队中',
   running: '运行中',
   passed: '已完成',
   failed: '执行失败',
@@ -76,7 +76,7 @@ export default function CommandPanel({ ids }: { ids?: string[] }) {
       {!visible.length && (
         <div className="commandEmpty">
           <strong>还没有执行记录</strong>
-          <p>从对话提出工程构建或测试请求，也可以在这里提交命令。</p>
+          <p>对话触发的工程命令会在后台执行，记录在这里查看。</p>
         </div>
       )}
       {visible.map((run) => (
@@ -84,7 +84,6 @@ export default function CommandPanel({ ids }: { ids?: string[] }) {
           <header>
             <span className={`commandStatus ${run.status}`}>{statusNames[run.status]}</span>
             <time>{new Date(run.createdAt).toLocaleString('zh-CN')}</time>
-            {run.approval && <span>{run.approval === 'managed' ? '完全托管' : '手动确认'}</span>}
           </header>
           <code className="commandLine">{run.command}</code>
           <p className="commandReason">{run.reason}</p>
@@ -99,25 +98,7 @@ export default function CommandPanel({ ids }: { ids?: string[] }) {
           )}
           {run.truncated && <p className="commandLocation">输出已截断，保留最后 128K 字符。</p>}
           <footer>
-            {run.status === 'pending' && (
-              <>
-                <button
-                  className="workButton primary"
-                  disabled={busy}
-                  onClick={() => api && void perform(() => api.approveCommand(run.id))}
-                >
-                  批准并执行
-                </button>
-                <button
-                  className="workButton"
-                  disabled={busy}
-                  onClick={() => api && void perform(() => api.rejectCommand(run.id))}
-                >
-                  拒绝
-                </button>
-              </>
-            )}
-            {run.status === 'running' && (
+            {['running', 'pending', 'reviewing'].includes(run.status) && (
               <button
                 className="workButton danger"
                 disabled={busy}

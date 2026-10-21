@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import electron from 'electron';
+import { prepareRuntime } from './runtime.mjs';
 
 if (!['darwin', 'win32'].includes(process.platform)) {
   throw new Error('桌面原型仅支持 Windows 和 macOS。');
@@ -22,6 +23,7 @@ async function stop(code = 0) {
 }
 
 try {
+  const executable = await prepareRuntime(electron, appRoot);
   if (development) {
     const { createServer } = await import('vite');
     server = await createServer({
@@ -35,7 +37,10 @@ try {
   // 外层工具可能使用 ELECTRON_RUN_AS_NODE；桌面进程必须以应用模式运行。
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  child = spawn(electron, [appRoot, ...(development ? ['--dev'] : [])], { stdio: 'inherit', env });
+  child = spawn(executable, [appRoot, ...(development ? ['--dev'] : [])], {
+    stdio: 'inherit',
+    env,
+  });
   child.on('error', (error) => {
     console.error(error);
     void stop(1);

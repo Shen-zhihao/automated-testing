@@ -1,0 +1,96 @@
+.appSelect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+  text-align: left;
+  transition:
+    border-color 120ms,
+    background-color 120ms;
+
+  &:hover:not(:disabled) {
+    border-color: var(--border-strong);
+    background: var(--surface-secondary);
+  }
+  &:focus-visible,
+  &[aria-expanded='true'] {
+    border-color: var(--accent);
+    outline: 2px solid var(--surface-accent);
+    outline-offset: 1px;
+  }
+  &:disabled {
+    background: var(--surface-secondary);
+    color: var(--text-muted);
+    opacity: 1;
+  }
+}
+.appSelectValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  &.placeholder {
+    color: var(--text-muted);
+  }
+}
+.appSelectChevron {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: transform 120ms;
+  [aria-expanded='true'] > & {
+    transform: rotate(180deg);
+  }
+}
+.appSelectPopup {
+  position: fixed;
+  z-index: 1200;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  box-shadow: 0 8px 28px var(--shadow-color);
+}
+.appSelectOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+  > span {
+    overflow-wrap: anywhere;
+  }
+  > svg {
+    flex-shrink: 0;
+  }
+  &[data-active='true'] {
+    background: var(--surface-secondary);
+  }
+  &[aria-selected='true'] {
+    color: var(--text-accent);
+    background: var(--surface-accent);
+  }
+  &[aria-disabled='true'] {
+    color: var(--text-muted);
+    background: transparent;
+    cursor: not-allowed;
+  }
+}

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Modal from '@/components/Modal';
 import Icon, { type IconName } from '@/components/Icon';
@@ -7,6 +7,7 @@ import { APP_NAME, APP_TAGLINE } from '@/brand';
 import ProjectDialog from '@/components/ProjectDialog';
 import DeleteProjectDialog from '@/components/DeleteProjectDialog';
 import ProjectContextMenu, { type ProjectMenuAnchor } from './components/ProjectContextMenu';
+import DocumentLibrary from './components/DocumentLibrary';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useProject } from '@/hooks/useProject';
 import {
@@ -30,7 +31,6 @@ const sections: { path: string; label: string; icon: IconName }[] = [
   { path: 'documents', label: '需求分析', icon: 'document' },
   { path: 'chat', label: '对话管理', icon: 'chat' },
   { path: 'tasks', label: '测试验收', icon: 'check' },
-  { path: 'terminal', label: '命令执行', icon: 'terminal' },
   { path: 'files', label: '文件与缓存', icon: 'projects' },
 ];
 export default function MainLayout() {
@@ -176,16 +176,20 @@ function MainLayoutContent() {
                 {item.id === projectId && (
                   <nav className="projectSectionNav" aria-label="当前工程功能">
                     {sections.map((item) => (
-                      <NavLink
-                        key={item.path}
-                        to={projectPath(item.path)}
-                        aria-label={item.label}
-                        title={collapsed ? item.label : undefined}
-                        onClick={() => browser.select(null)}
-                      >
-                        <Icon name={item.icon} size={16} />
-                        <span className="sidebarText">{item.label}</span>
-                      </NavLink>
+                      <Fragment key={item.path}>
+                        <NavLink
+                          to={projectPath(item.path)}
+                          aria-label={item.label}
+                          title={collapsed ? item.label : undefined}
+                          onClick={() => browser.select(null)}
+                        >
+                          <Icon name={item.icon} size={16} />
+                          <span className="sidebarText">{item.label}</span>
+                        </NavLink>
+                        {item.path === 'documents' && section?.path === 'documents' && (
+                          <DocumentLibrary onSelect={() => browser.select(null)} />
+                        )}
+                      </Fragment>
                     ))}
                   </nav>
                 )}
@@ -215,7 +219,7 @@ function MainLayoutContent() {
           </NavLink>
           <div className="localStatus">
             <i />
-            本地工作区<span>Windows · macOS</span>
+            本地工作区
           </div>
         </div>
       </aside>

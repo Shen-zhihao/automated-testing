@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { FeishuService, parseFeishuUrl } from '../src/feishu.mjs';
 import { FeishuApi, TOKEN_URL } from '../src/feishu/api.mjs';
+import { MAX_IMAGE_BYTES, readImageResponse } from '../src/feishu/images.mjs';
 import { SettingsService, DEFAULT_MODEL } from '../src/settings.mjs';
 import { WorkspaceStore } from '../src/store.mjs';
 
@@ -392,4 +393,207 @@ test('unconfigured or undecryptable credentials request configuration, without a
     reopened.testConnection({ ...credentials, appSecret: '' }),
     /无法解密.*测试连接/,
   );
+});
+
+const png = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+  'base64',
+);
+const imageBlocks = (imageTokens) => [
+  {
+    block_id: 'Doc123',
+    page: {},
+    children: ['before', ...imageTokens.map((_, i) => `image${i}`), 'after'],
+  },
+  { block_id: 'before', text: { elements: [{ text_run: { content: '图前说明' } }] } },
+  ...imageTokens.map((token, i) => ({ block_id: `image${i}`, image: { token, width: 640 } })),
+  { block_id: 'after', text: { elements: [{ text_run: { content: '图后说明' } }] } },
+];
+function imageResponse(url, imageTokens = ['Image123', 'Image123']) {
+  return url.includes('/blocks?')
+    ? json({ data: { items: imageBlocks(imageTokens), has_more: false } })
+    : documentResponse(url);
+}
+
+test('docx/wiki images download once per material, retain reading order and persist separately from analysis text', async (t) => {
+  let downloads = 0;
+  const { store, service } = setup(t, {
+    fetchImpl: async (url, options) => {
+      if (url === TOKEN_URL) return json(tokens());
+      if (url.includes('/medias/')) {
+        downloads++;
+        const parsed = new URL(url);
+        assert.equal(parsed.origin, 'https://open.feishu.cn');
+        assert.equal(parsed.pathname, '/open-apis/drive/v1/medias/Image123/download');
+        assert.deepEqual(JSON.parse(parsed.searchParams.get('extra')), {
+          doc_id: 'Doc123',
+          doc_type: 'docx',
+        });
+        assert.equal(options.headers.Authorization, 'Bearer private-app-access-1');
+        assert.equal(options.redirect, 'error');
+        return new Response(png, { headers: { 'Content-Type': 'application/octet-stream' } });
+      }
+      return imageResponse(url);
+    },
+  });
+  await service.testConnection(credentials);
+  for (const type of ['docx', 'wiki']) {
+    const result = await service.read(`https://tenant.feishu.cn/${type}/Doc123`);
+    assert.equal((result.preview.content.match(/src="data:image\/png;base64,/g) ?? []).length, 2);
+    assert.match(result.preview.content, /width="640"/);
+    assert.ok(result.preview.content.indexOf('图前说明') < result.preview.content.indexOf('<img'));
+    assert.ok(
+      result.preview.content.lastIndexOf('<img') < result.preview.content.indexOf('图后说明'),
+    );
+    assert.doesNotMatch(JSON.stringify(result), /private-app|Image123|open-apis\/drive/);
+    assert.doesNotMatch(result.content, /data:image|base64/);
+    assert.ok(!result.warnings.some((warning) => warning.includes('未展开')));
+    assert.ok(result.warnings.some((warning) => warning.includes('尚未识别图片内文字')));
+    const saved = store.addDocument(result);
+    store.saveAnalysis(saved.id, { content: '已有分析' });
+    assert.equal(store.getDocument(saved.id).preview.content, result.preview.content);
+    const updated = store.updateDocumentSource(saved.id, result);
+    assert.equal(
+      updated.analysis.content,
+      '已有分析',
+      'refreshing image preview keeps analysis when text is unchanged',
+    );
+    assert.equal(updated.content, '登录失败三次后锁定账号。');
+  }
+  assert.equal(downloads, 2, 'duplicate image references share one download in each import');
+});
+
+test('image token expiry renews once and preserves the document preview', async (t) => {
+  let acquisitions = 0,
+    downloads = 0;
+  const { service } = setup(t, {
+    fetchImpl: async (url, options) => {
+      if (url === TOKEN_URL) return json(tokens(++acquisitions));
+      if (url.includes('/medias/')) {
+        downloads++;
+        return options.headers.Authorization.endsWith('-1')
+          ? json({ code: 99991663 }, 401)
+          : new Response(png);
+      }
+      return imageResponse(url);
+    },
+  });
+  await service.testConnection(credentials);
+  const result = await service.read('https://tenant.feishu.cn/docx/Doc123');
+  assert.match(result.preview.content, /src="data:image\/png;base64,/);
+  assert.equal(acquisitions, 2);
+  assert.equal(downloads, 2);
+});
+
+test('missing image download permissions keep text and structure, with actionable guidance and no remote secret', async (t) => {
+  const { service } = setup(t, {
+    fetchImpl: async (url) => {
+      if (url === TOKEN_URL) return json(tokens());
+      if (url.includes('/medias/'))
+        return json({ code: 99991672, msg: 'private-remote-secret' }, 403);
+      return imageResponse(url);
+    },
+  });
+  await service.testConnection(credentials);
+  const result = await service.read('https://tenant.feishu.cn/docx/Doc123');
+  assert.equal(result.content, '登录失败三次后锁定账号。');
+  assert.match(result.preview.content, /图前说明.*图片未展开.*图后说明/);
+  assert.match(result.warnings[0], /2 张图片未展开.*下载只读权限.*阅读和下载/);
+  assert.doesNotMatch(JSON.stringify(result), /private-remote-secret/);
+  assert.equal(service.status().connected, true);
+});
+
+test('image decoding rejects SVG, HTML, fake JSON success, redirects and oversized responses without following remote URLs', async () => {
+  const responses = [
+    new Response('<svg xmlns="http://www.w3.org/2000/svg"></svg>', {
+      headers: { 'Content-Type': 'image/svg+xml' },
+    }),
+    new Response('<html>login page</html>', { headers: { 'Content-Type': 'image/png' } }),
+    json({ code: 0, data: {} }),
+    new Response(null, { status: 302, headers: { Location: 'https://evil.example/image' } }),
+    new Response(png, { headers: { 'Content-Length': String(MAX_IMAGE_BYTES + 1) } }),
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(MAX_IMAGE_BYTES + 1));
+          controller.close();
+        },
+      }),
+    ),
+  ];
+  for (const response of responses) {
+    const calls = [];
+    const api = new FeishuApi(async (url, options) => {
+      calls.push(url);
+      assert.equal(options.redirect, 'error');
+      return response;
+    });
+    await assert.rejects(api.downloadImage('Image123', 'Doc123', 'private-token'));
+    assert.equal(calls.length, 1);
+    assert.match(calls[0], /^https:\/\/open\.feishu\.cn\//);
+  }
+  const api = new FeishuApi(() => assert.fail('invalid material IDs must not be fetched'));
+  for (const token of ['../image', 'https://evil.example/image', 'Image?url=evil', ''])
+    await assert.rejects(api.downloadImage(token, 'Doc123', 'private-token'), /标识无效/);
+  for (const [type, data] of [
+    ['png', png],
+    ['jpeg', Buffer.from('ffd8ffe0', 'hex')],
+    ['gif', Buffer.from('GIF89a')],
+    ['webp', Buffer.from('RIFF0000WEBP')],
+  ]) {
+    const result = await readImageResponse(new Response(data), MAX_IMAGE_BYTES);
+    assert.match(result.src, new RegExp(`^data:image/${type};base64,`));
+  }
+});
+
+test('image budgets retain smaller images and all text while oversized and excess images have visible placeholders', async (t) => {
+  const requested = [];
+  const { service } = setup(t, {
+    fetchImpl: async (url) => {
+      if (url === TOKEN_URL) return json(tokens());
+      if (url.includes('/medias/')) {
+        const token = new URL(url).pathname.split('/').at(-2);
+        requested.push(token);
+        const bytes = token === 'Image3' ? 2 * 1024 * 1024 : 3 * 1024 * 1024;
+        const data = Buffer.alloc(bytes);
+        png.copy(data);
+        return new Response(data, { headers: { 'Content-Length': String(bytes) } });
+      }
+      return imageResponse(url, ['Image1', 'Image2', 'Image3', 'Image4']);
+    },
+  });
+  await service.testConnection(credentials);
+  const result = await service.read('https://tenant.feishu.cn/docx/Doc123');
+  assert.deepEqual(requested, ['Image1', 'Image2', 'Image3']);
+  assert.equal((result.preview.content.match(/<img /g) ?? []).length, 2);
+  assert.match(result.preview.content, /图片超过本地预览大小上限/);
+  assert.match(result.preview.content, /图片总量超过 5 MB/);
+  assert.match(result.preview.content, /图后说明/);
+  assert.equal(result.content, '登录失败三次后锁定账号。');
+});
+
+test('changing app configuration during an image download rejects stale document results', async (t) => {
+  const started = deferred(),
+    release = deferred();
+  const { service } = setup(t, {
+    fetchImpl: async (url) => {
+      if (url === TOKEN_URL) return json(tokens());
+      if (url.includes('/medias/')) {
+        started.resolve();
+        await release.promise;
+        return new Response(png);
+      }
+      return imageResponse(url);
+    },
+  });
+  await service.testConnection(credentials);
+  const reading = assert.rejects(
+    service.read('https://tenant.feishu.cn/docx/Doc123'),
+    /abort|取消/i,
+  );
+  await started.promise;
+  await service.testConnection({ appId: 'cli_replacement', appSecret: 'new-secret' });
+  release.resolve();
+  await reading;
+  assert.equal(service.status().appId, 'cli_replacement');
 });

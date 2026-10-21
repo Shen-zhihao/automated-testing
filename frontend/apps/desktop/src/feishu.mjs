@@ -1,6 +1,7 @@
 import { normalizeContent } from './documents/content.mjs';
 import { FeishuApi, FeishuApiError } from './feishu/api.mjs';
 import { renderFeishuBlocks } from './feishu/preview.mjs';
+import { loadFeishuImages } from './feishu/images.mjs';
 
 export function parseFeishuUrl(input) {
   let url;
@@ -186,10 +187,10 @@ export class FeishuService {
     const signal = this.controller.signal;
     let token = await this.accessToken();
     signal.throwIfAborted();
-    const get = async (resource) => {
+    const request = async (operation) => {
       const requestToken = token;
       try {
-        return await this.api.get(resource, requestToken, signal);
+        return await operation(requestToken);
       } catch (error) {
         if (!isExpiredToken(error) || signal.aborted) throw error;
         this.forgetToken(requestToken);
@@ -197,13 +198,14 @@ export class FeishuService {
         token = renewed;
         signal.throwIfAborted();
         try {
-          return await this.api.get(resource, renewed, signal);
+          return await operation(renewed);
         } catch (retryError) {
           if (isExpiredToken(retryError)) this.forgetToken(renewed);
           throw retryError;
         }
       }
     };
+    const get = (resource) => request((accessToken) => this.api.get(resource, accessToken, signal));
     let documentId = parsed.token;
     if (parsed.type === 'wiki') {
       const data = await get(
@@ -247,11 +249,28 @@ export class FeishuService {
         seenPages.add(pageToken);
       } while (pageToken);
       if (!blocks.length) throw new Error('飞书文档结构为空。');
-      preview = renderFeishuBlocks(blocks, documentId, info.document?.title ?? '', warnings);
+      const images = await loadFeishuImages(
+        blocks,
+        (imageToken, imageSignal, limit) =>
+          request((accessToken) =>
+            this.api.downloadImage(imageToken, documentId, accessToken, imageSignal, limit),
+          ),
+        signal,
+        warnings,
+      );
+      signal.throwIfAborted();
+      preview = renderFeishuBlocks(
+        blocks,
+        documentId,
+        info.document?.title ?? '',
+        warnings,
+        images,
+      );
     } catch (error) {
       signal.throwIfAborted();
       warnings.push(`格式预览未获取成功，已保留完整纯文字，可稍后重新提取格式。${error.message}`);
     }
+    signal.throwIfAborted();
     return {
       name: text(info.document?.title, 2000) || '飞书文档',
       source: parsed.url,

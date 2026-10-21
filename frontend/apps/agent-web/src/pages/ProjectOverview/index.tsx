@@ -158,14 +158,15 @@ export default function ProjectOverviewPage() {
               <div>
                 <strong>{chat.title}</strong>
                 <span>
-                  {chat.featureId || '完整需求'} · {chat.taskId ? '已关联验收任务' : '讨论中'}
+                  {chat.featureId || (chat.sourceId ? '文档讨论' : '工程对话')} ·{' '}
+                  {chat.taskId ? '已关联验收任务' : '讨论中'}
                 </span>
               </div>
               <Icon name="arrow" size={15} />
             </Link>
           ))}
           {!state.testSessions.length && (
-            <p className="overviewEmpty">分析需求后，围绕功能和验收条件开始讨论。</p>
+            <p className="overviewEmpty">直接开始对话，需要资料时通过附件图标引用。</p>
           )}
         </section>
       </div>

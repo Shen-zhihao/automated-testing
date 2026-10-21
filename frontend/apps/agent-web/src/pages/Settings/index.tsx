@@ -3,6 +3,7 @@ import type { SettingsInput } from '@project/shared-api';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import AppearanceSettings from '@/components/AppearanceSettings';
 import DesktopRequired from '@/components/DesktopRequired';
+import Select from '@/components/Select';
 import FeishuSettings from './components/FeishuSettings';
 import StorageSettings from './components/StorageSettings';
 import './index.less';
@@ -96,13 +97,16 @@ export default function SettingsPage() {
             </label>
             <label>
               接口格式
-              <select
+              <Select
+                aria-label="接口格式"
                 value={form.model.format}
-                onChange={(event) => change('format', event.target.value)}
-              >
-                <option value="chat-completions">Chat Completions（通用兼容）</option>
-                <option value="responses">Responses</option>
-              </select>
+                disabled={Boolean(busy)}
+                onChange={(value) => change('format', value)}
+                options={[
+                  { value: 'chat-completions', label: 'Chat Completions（通用兼容）' },
+                  { value: 'responses', label: 'Responses' },
+                ]}
+              />
             </label>
             <label>
               模型名称
@@ -150,22 +154,26 @@ export default function SettingsPage() {
             )}
             <label>
               最大输出 Token
-              <select
-                value={form.model.maxTokens}
-                onChange={(event) => change('maxTokens', Number(event.target.value))}
-              >
-                {!outputTokenOptions.includes(form.model.maxTokens) && (
-                  <option value={form.model.maxTokens}>
-                    {form.model.maxTokens.toLocaleString()} Token（已保存）
-                  </option>
-                )}
-                {outputTokenOptions.map((tokens) => (
-                  <option key={tokens} value={tokens}>
-                    {tokens >= 1024 ? `${tokens / 1024}K` : tokens}（{tokens.toLocaleString()}{' '}
-                    Token）
-                  </option>
-                ))}
-              </select>
+              <Select
+                aria-label="最大输出 Token"
+                value={String(form.model.maxTokens)}
+                disabled={Boolean(busy)}
+                onChange={(value) => change('maxTokens', Number(value))}
+                options={[
+                  ...(!outputTokenOptions.includes(form.model.maxTokens)
+                    ? [
+                        {
+                          value: String(form.model.maxTokens),
+                          label: `${form.model.maxTokens.toLocaleString()} Token（已保存）`,
+                        },
+                      ]
+                    : []),
+                  ...outputTokenOptions.map((tokens) => ({
+                    value: String(tokens),
+                    label: `${tokens >= 1024 ? `${tokens / 1024}K` : tokens}（${tokens.toLocaleString()} Token）`,
+                  })),
+                ]}
+              />
               <small>
                 限制单次回复长度，不是上下文容量。请按模型支持的输出上限选择；1M 上下文不代表能输出
                 1M。
@@ -202,15 +210,19 @@ export default function SettingsPage() {
             {form.model.format === 'chat-completions' && (
               <label>
                 输出 Token 参数
-                <select
+                <Select
+                  aria-label="输出 Token 参数"
                   value={form.model.tokenParameter}
-                  onChange={(event) => change('tokenParameter', event.target.value)}
-                >
-                  <option value="max_tokens">max_tokens（通用服务）</option>
-                  <option value="max_completion_tokens">
-                    max_completion_tokens（新版 OpenAI）
-                  </option>
-                </select>
+                  disabled={Boolean(busy)}
+                  onChange={(value) => change('tokenParameter', value)}
+                  options={[
+                    { value: 'max_tokens', label: 'max_tokens（通用服务）' },
+                    {
+                      value: 'max_completion_tokens',
+                      label: 'max_completion_tokens（新版 OpenAI）',
+                    },
+                  ]}
+                />
               </label>
             )}
           </div>

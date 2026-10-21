@@ -8,7 +8,6 @@ import { useProject } from '@/hooks/useProject';
 const ProjectsPage = lazy(() => import('@/pages/Projects'));
 const OverviewPage = lazy(() => import('@/pages/ProjectOverview'));
 const FilesPage = lazy(() => import('@/pages/ProjectFiles'));
-const TerminalPage = lazy(() => import('@/pages/Terminal'));
 function ProjectBoundary() {
   const { state, error } = useWorkspace(),
     { project } = useProject();
@@ -54,7 +53,7 @@ export default function App() {
                   <Route path="tasks" element={<TaskListPage />} />
                   <Route path="tasks/:taskId" element={<TaskDetailPage />} />
                   <Route path="files" element={<FilesPage />} />
-                  <Route path="terminal" element={<TerminalPage />} />
+                  <Route path="terminal" element={<Navigate to="../chat" replace />} />
                 </Route>
                 <Route path="settings" element={<SettingsPage />} />
               </Route>

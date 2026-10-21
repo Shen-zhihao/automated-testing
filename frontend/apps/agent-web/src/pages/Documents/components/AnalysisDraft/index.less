@@ -1,0 +1,77 @@
+.analysisDraft {
+  .draftHeading,
+  .draftSectionHeading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  h3 {
+    font-size: 17px;
+    margin: 0 0 8px;
+  }
+  .draftHeading p,
+  .draftHint,
+  .draftGoal {
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+  }
+  .draftHint {
+    margin: 14px 0;
+  }
+  .draftGoal {
+    padding: 12px 16px;
+    background: var(--surface-secondary);
+    border-radius: 8px;
+    white-space: pre-wrap;
+  }
+  .draftToolbar {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 20px 0;
+  }
+  .draftPicker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 200px;
+    max-width: 520px;
+    flex: 1 1 300px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .draftAutoSwitch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    margin: -6px 0 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    input {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+    }
+  }
+  .draftSection {
+    border-top: 1px solid var(--border);
+    padding: 20px 0;
+  }
+  .draftSectionHeading {
+    margin-bottom: 16px;
+  }
+  .draftSectionHeading h4 {
+    font-size: 14px;
+  }
+  .draftSectionHeading span {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+}

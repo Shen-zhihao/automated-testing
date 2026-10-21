@@ -2,13 +2,17 @@ import { useProject } from '@/hooks/useProject';
 import { APP_NAME } from '@/brand';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { RequirementFeature, WorkChat } from '@project/shared-api';
+import type { WorkChat, WorkChatMessage, WorkChatSummary } from '@project/shared-api';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import DesktopRequired from '@/components/DesktopRequired';
 import Modal from '@/components/Modal';
+import Select from '@/components/Select';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import DeleteContextMenu, { type ContextMenuAnchor } from '@/components/DeleteContextMenu';
+import Icon from '@/components/Icon';
 import CommandPanel from '@/components/CommandPanel';
-import MarkdownContent from '@/components/MarkdownContent';
 import AttachmentMenu from './components/AttachmentMenu';
+import TypewriterReply from './components/TypewriterReply';
 import './index.less';
 import '../../styles/testing.less';
 
@@ -17,63 +21,79 @@ export default function ChatHomePage() {
   const { state, refresh, error: workspaceError } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const sessionId = params.get('session') || '';
-  const [documentId, setDocumentId] = useState(params.get('document') || '');
-  const [featureId, setFeatureId] = useState(params.get('feature') || '');
-  const [features, setFeatures] = useState<RequirementFeature[]>([]);
+  const documentId = params.get('document') || '';
+  const featureId = params.get('feature') || '';
+  const [documentIds, setDocumentIds] = useState<string[]>(documentId ? [documentId] : []);
   const [chat, setChat] = useState<WorkChat | null>(null);
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [pendingReply, setPendingReply] = useState<{
+    sessionId: string;
+    messageIds: Set<string>;
+  } | null>(null);
+  const [skipTyping, setSkipTyping] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
-  const [renaming, setRenaming] = useState(false),
-    [title, setTitle] = useState('');
-  const [commandIds, setCommandIds] = useState<string[] | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [title, setTitle] = useState('');
+  const [contextMenu, setContextMenu] = useState<
+    (ContextMenuAnchor & { sessionId: string }) | null
+  >(null);
+  const [deleting, setDeleting] = useState<WorkChatSummary | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [commandMessageId, setCommandMessageId] = useState<string | null>(null);
+  const [retaining, setRetaining] = useState<WorkChatMessage | null>(null);
   const [targetTask, setTargetTask] = useState('');
   const viewport = useRef<HTMLDivElement>(null);
+  const followReply = useRef(true);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const activeSession = useRef(sessionId);
+  activeSession.current = sessionId;
   const updated = state?.testSessions.find((item) => item.id === sessionId)?.updatedAt;
   const job = state?.testJobs[`chat:${sessionId}`];
   useEffect(() => {
     let active = true;
     setChat((previous) => (previous?.id === sessionId ? previous : null));
-    setTargetTask('');
     if (sessionId)
       void api
         ?.getChat(sessionId)
         .then((value) => {
-          if (active) {
-            setChat(value);
-            setTargetTask(value.taskId || '');
-          }
+          if (!active || activeSession.current !== sessionId) return;
+          setChat(value);
         })
         .catch((cause) => {
-          if (active) setError(String(cause.message));
+          if (active && activeSession.current === sessionId) setError(String(cause.message));
         });
     return () => {
       active = false;
     };
-  }, [sessionId, updated]);
+  }, [api, sessionId, documentId, updated]);
   useEffect(() => {
-    let active = true;
-    setFeatures([]);
-    if (documentId)
-      void api
-        ?.testingFeatures(documentId)
-        .then((value) => {
-          if (active) setFeatures(value);
-        })
-        .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [documentId]);
+    setDocumentIds(documentId ? [documentId] : []);
+  }, [api, sessionId, documentId]);
   useEffect(() => {
     if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
   }, [chat?.messages.length]);
+  useEffect(() => setContextMenu(null), [api, sessionId, query]);
   if (!api) return <DesktopRequired />;
   if (!state) return <div className="testingPage">{workspaceError || '正在读取本机对话…'}</div>;
-  const docs = state.documents.filter((doc) => doc.analyzed);
   const running = job?.status === 'running';
+  const loading = Boolean(sessionId && !chat);
+  const menuSession = state.testSessions.find((session) => session.id === contextMenu?.sessionId);
+  const menuRunning = state.testJobs[`chat:${menuSession?.id}`]?.status === 'running';
+  const selectedDocuments = documentIds.flatMap((id) =>
+    state.documents.filter((doc) => doc.id === id),
+  );
+  const isNewReply = (message: WorkChatMessage) =>
+    pendingReply?.sessionId === chat?.id &&
+    !pendingReply?.messageIds.has(message.id) &&
+    message.role === 'assistant' &&
+    message.status === 'complete';
+  const replyArrived = Boolean(chat?.messages.some(isNewReply));
+  const typing = replyArrived && !skipTyping;
+  const thinking = (sending || running) && !replyArrived;
   const perform = async (operation: () => Promise<void>) => {
     setBusy(true);
     setError('');
@@ -89,11 +109,65 @@ export default function ChatHomePage() {
   };
   const send = () => {
     const value = prompt.trim();
-    if (!value || !chat || busy || running) return;
+    if (!value || busy || running || loading || typing) return;
+    const draft = prompt;
+    const references = selectedDocuments.map((doc) => doc.id);
     setPrompt('');
+    setDocumentIds([]);
+    setSending(true);
+    setSkipTyping(false);
+    followReply.current = true;
     void perform(async () => {
-      await api.sendChat(chat.id, value);
+      try {
+        const current = chat || (await api.createChat(documentId ? { documentId, featureId } : {}));
+        if (!chat) {
+          activeSession.current = current.id;
+          setChat(current);
+          setParams({ session: current.id });
+        }
+        setPendingReply({
+          sessionId: current.id,
+          messageIds: new Set(current.messages.map((message) => message.id)),
+        });
+        const result = await api.sendChat(current.id, value, references);
+        if (activeSession.current === current.id) setChat(result);
+      } catch (cause) {
+        setPendingReply(null);
+        setPrompt((current) => current || draft);
+        throw cause;
+      } finally {
+        setSending(false);
+      }
     });
+  };
+  const deleteChat = async () => {
+    if (!deleting || busy) return;
+    setBusy(true);
+    setDeleteError('');
+    setError('');
+    setNotice('');
+    try {
+      await api.deleteChat(deleting.id);
+      if (activeSession.current === deleting.id) {
+        activeSession.current = '';
+        setParams({}, { replace: true });
+        setChat(null);
+        setPrompt('');
+        setDocumentIds([]);
+        setPendingReply(null);
+        setSkipTyping(false);
+        setCommandMessageId(null);
+        setRenaming(false);
+        setRetaining(null);
+      }
+      setDeleting(null);
+      setNotice(`已删除对话「${deleting.title}」。`);
+      await refresh();
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : '删除失败，请重试。');
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div className="chatHomePage connectedChat">
@@ -102,11 +176,16 @@ export default function ChatHomePage() {
           <div className="panelTitle">工程对话</div>
           <button
             className="newChatBtn"
+            disabled={busy}
             onClick={() => {
+              setContextMenu(null);
               setParams({});
               setPrompt('');
+              setDocumentIds([]);
               setError('');
               setNotice('');
+              setPendingReply(null);
+              composer.current?.focus();
             }}
           >
             新建
@@ -128,22 +207,51 @@ export default function ChatHomePage() {
                 <button
                   key={session.id}
                   className={`conversationItem ${session.id === sessionId ? 'active' : ''}`}
+                  disabled={busy}
+                  title={`${session.title} · 右键管理对话`}
+                  aria-haspopup="menu"
+                  aria-expanded={contextMenu?.sessionId === session.id}
                   onClick={() => {
+                    setContextMenu(null);
                     setParams({ session: session.id });
                     setPrompt('');
+                    setError('');
                     setNotice('');
+                    setPendingReply(null);
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    if (busy) return;
+                    event.currentTarget.focus();
+                    setContextMenu({
+                      sessionId: session.id,
+                      x: event.clientX,
+                      y: event.clientY,
+                      trigger: event.currentTarget,
+                    });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10'))
+                      return;
+                    event.preventDefault();
+                    if (busy) return;
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    setContextMenu({
+                      sessionId: session.id,
+                      x: rect.left + 12,
+                      y: rect.bottom,
+                      trigger: event.currentTarget,
+                    });
                   }}
                 >
                   <div className="conversationName">{session.title}</div>
                   <div className="conversationMeta">
-                    <span>{session.featureId || '完整需求'}</span>
+                    <span>{session.featureId || (session.sourceId ? '文档讨论' : '工程对话')}</span>
                     <span>{session.taskId ? '已关联测试任务' : '讨论中'}</span>
                   </div>
                 </button>
               ))}
-            {!state.testSessions.length && (
-              <p className="emptyState">选择已分析的需求，开始第一次任务讨论。</p>
-            )}
+            {!state.testSessions.length && <p className="emptyState">输入问题，开始第一次对话。</p>}
           </div>
         </div>
         <div className="conversationFooter">
@@ -153,13 +261,13 @@ export default function ChatHomePage() {
       <section className="chatPanel">
         <header className="chatHeader">
           <div className="chatHeaderMain">
-            <div className="chatEyebrow">文档 → 讨论 → 测试任务</div>
-            <h1 className="chatTitle">{chat?.title || '从需求分析继续讨论'}</h1>
-            {chat && (
+            <div className="chatEyebrow">工程对话</div>
+            <h1 className="chatTitle">{chat?.title || '新对话'}</h1>
+            {chat?.source && (
               <p className="chatSubtitle">
-                {chat.source.name} · {chat.featureId || '完整需求'} · 分析于{' '}
-                {new Date(chat.source.analysisCreatedAt).toLocaleString('zh-CN')}
-                {chat.source.changed ? ' · 当前文档已有变化，本对话保留原版本依据' : ''}
+                {chat.source.name}
+                {chat.featureId ? ` · ${chat.featureId}` : ''}
+                {chat.source.changed ? ' · 原文已有变化，历史消息保留引用时的版本' : ''}
               </p>
             )}
             {chat?.taskId && (
@@ -168,88 +276,85 @@ export default function ChatHomePage() {
               </Link>
             )}
           </div>
-          <div className="chatHeaderTools">
-            {chat && (
-              <button
-                className="workButton subtle"
-                disabled={running}
-                onClick={() => {
-                  setTitle(chat.title);
-                  setRenaming(true);
-                }}
-              >
-                重命名
-              </button>
-            )}
-            <Link className="workButton subtle" to={projectPath('terminal')}>
-              命令执行
-            </Link>
-          </div>
+          {chat && (
+            <button
+              className="workButton subtle"
+              disabled={running || busy}
+              onClick={() => {
+                setTitle(chat.title);
+                setRenaming(true);
+              }}
+            >
+              重命名
+            </button>
+          )}
         </header>
-        <div className="messageViewport" ref={viewport}>
+        <div
+          className={`messageViewport ${!chat?.messages.length ? 'empty' : ''}`}
+          ref={viewport}
+          onScroll={(event) => {
+            const node = event.currentTarget;
+            followReply.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+          }}
+        >
           {!sessionId && (
-            <div className="welcomeCard">
-              <h2 className="welcomeTitle">选择需求与功能</h2>
-              <p className="welcomeDesc">
-                结合需求原文、实现步骤和验收标准连续追问。需要保留的回复可直接加入测试任务。
-              </p>
-              <div className="testingForm">
-                <label>
-                  需求文档
-                  <select
-                    value={documentId}
-                    onChange={(event) => {
-                      setDocumentId(event.target.value);
-                      setFeatureId('');
-                    }}
-                  >
-                    <option value="">请选择已分析的文档</option>
-                    {docs.map((doc) => (
-                      <option key={doc.id} value={doc.id}>
-                        {doc.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  讨论范围
-                  <select value={featureId} onChange={(event) => setFeatureId(event.target.value)}>
-                    <option value="">整份需求与完整流程</option>
-                    {features.map((feature) => (
-                      <option key={feature.id} value={feature.id}>
-                        {feature.id} {feature.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  className="testButton primary"
-                  disabled={!documentId || busy}
-                  onClick={() =>
-                    void perform(async () => {
-                      const value = await api.createChat({ documentId, featureId });
-                      setParams({ session: value.id });
-                    })
-                  }
-                >
-                  开始讨论
-                </button>
-                {!docs.length && (
-                  <Link to={projectPath('documents')}>先导入需求并生成实施与验收文档 →</Link>
-                )}
-              </div>
+            <div className="chatWelcome">
+              <Icon name="chat" size={30} />
+              <h2>有什么想一起讨论的？</h2>
+              <p>直接输入问题，需要资料时通过下方附件图标引用。</p>
             </div>
           )}
-          {sessionId && !chat && <p className="emptyState">正在读取讨论…</p>}
+          {loading && <p className="emptyState">正在读取对话…</p>}
           <div className="messageList">
             {chat?.messages.map((message) => (
               <article key={message.id} className={`messageItem ${message.role}`}>
                 <div className="messageRole">{message.role === 'user' ? '你' : APP_NAME}</div>
                 <div className="messageBubble">
+                  {Boolean(message.references?.length) && (
+                    <div className="messageReferences" aria-label="本轮引用的文档">
+                      {message.references?.map((reference) => (
+                        <span
+                          key={reference.id}
+                          title={
+                            reference.changed ? '原文已有变化，保留引用时的版本' : reference.name
+                          }
+                        >
+                          <Icon name="document" size={13} />
+                          {reference.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {message.role === 'assistant' ? (
-                    <MarkdownContent>{message.content}</MarkdownContent>
+                    <TypewriterReply
+                      content={message.content}
+                      animate={Boolean(isNewReply(message)) && !skipTyping}
+                      onComplete={() =>
+                        setPendingReply((pending) =>
+                          pending?.sessionId === chat.id && !pending.messageIds.has(message.id)
+                            ? null
+                            : pending,
+                        )
+                      }
+                      onProgress={() => {
+                        if (followReply.current && viewport.current)
+                          viewport.current.scrollTop = viewport.current.scrollHeight;
+                      }}
+                    />
                   ) : (
                     <p className="userMessageText">{message.content}</p>
+                  )}
+                  {Boolean(message.references?.some((reference) => reference.warnings?.length)) && (
+                    <details className="messageEvidence">
+                      <summary>文档提取提示</summary>
+                      {message.references?.map((reference) =>
+                        reference.warnings?.length ? (
+                          <p key={reference.id}>
+                            {reference.name}：{reference.warnings.join('；')}
+                          </p>
+                        ) : null,
+                      )}
+                    </details>
                   )}
                   {Boolean(message.excerpts?.length) && (
                     <details className="messageEvidence">
@@ -262,31 +367,38 @@ export default function ChatHomePage() {
                       ))}
                     </details>
                   )}
-                  {Boolean(message.commandIds?.length) && (
-                    <button
-                      className="testButton keepMessage"
-                      onClick={() => setCommandIds(message.commandIds || [])}
+                  {Boolean(message.commandIds?.length) && !(typing && isNewReply(message)) && (
+                    <details
+                      className="messageEvidence"
+                      onToggle={(event) => {
+                        const open = event.currentTarget.open;
+                        setCommandMessageId((current) =>
+                          open ? message.id : current === message.id ? null : current,
+                        );
+                      }}
                     >
-                      查看命令与审批（{message.commandIds?.length}）
-                    </button>
+                      <summary>后台执行记录（{message.commandIds?.length}）</summary>
+                      {commandMessageId === message.id && <CommandPanel ids={message.commandIds} />}
+                    </details>
                   )}
                   {message.role === 'assistant' &&
                     message.status === 'complete' &&
-                    !message.refused && (
+                    !(typing && isNewReply(message)) &&
+                    !message.refused &&
+                    Boolean(message.references?.length) && (
                       <button
                         className="testButton keepMessage"
                         disabled={busy}
-                        onClick={() =>
-                          void perform(async () => {
-                            const task = await api.keepChatMessage(
-                              chat.id,
-                              message.id,
-                              targetTask || undefined,
-                            );
-                            setTargetTask(task.id);
-                            setNotice(`已保留到测试任务「${task.name}」。`);
-                          })
-                        }
+                        onClick={() => {
+                          setRetaining(message);
+                          setTargetTask(
+                            state.testTasks.find(
+                              (task) =>
+                                task.id === chat.taskId &&
+                                task.sourceId === message.references?.[0]?.id,
+                            )?.id || '',
+                          );
+                        }}
                       >
                         保留到测试任务
                       </button>
@@ -294,6 +406,21 @@ export default function ChatHomePage() {
                 </div>
               </article>
             ))}
+            {thinking && (
+              <article className="messageItem assistant">
+                <div className="messageRole">{APP_NAME}</div>
+                <div className="chatThinking" role="status" aria-live="polite">
+                  <span className="thinkingDots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span>
+                    {job?.message === '正在后台执行工程命令…' ? '正在后台执行命令…' : '思考中…'}
+                  </span>
+                </div>
+              </article>
+            )}
           </div>
         </div>
         <footer className="composer">
@@ -307,55 +434,34 @@ export default function ChatHomePage() {
               {notice}
             </div>
           )}
-          {job && <p className={`testJob ${job.status}`}>{job.message}</p>}
-          {chat && (
-            <>
-              <div className="chatTaskTarget">
-                <label>
-                  保留到{' '}
-                  <select
-                    value={targetTask}
-                    onChange={(event) => setTargetTask(event.target.value)}
-                  >
-                    <option value="">新建测试任务</option>
-                    {state.testTasks
-                      .filter((task) => task.sourceId === chat.sourceId)
-                      .map((task) => (
-                        <option key={task.id} value={task.id}>
-                          {task.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                {targetTask && (
-                  <Link className="testLink" to={`${projectPath('tasks')}/${targetTask}`}>
-                    生成详细测试文档 →
-                  </Link>
-                )}
-              </div>
-              <div className="chatQuickActions">
-                {[
-                  '细化这个功能的实现步骤和验收条件',
-                  '补充关键交互、错误处理和边界测试',
-                  '梳理端到端流程，并给出测试用例方向',
-                ].map((value) => (
-                  <button key={value} onClick={() => setPrompt(value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </>
+          {job && ['error', 'cancelled'].includes(job.status) && (
+            <p className={`testJob ${job.status}`}>{job.message}</p>
           )}
           <div className="composerBox">
+            {selectedDocuments.length > 0 && (
+              <div className="composerReferences" aria-label="待发送的引用文档">
+                {selectedDocuments.map((doc) => (
+                  <span key={doc.id}>
+                    <Icon name="document" size={14} />
+                    <span title={doc.name}>{doc.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`移除引用：${doc.name}`}
+                      disabled={busy || running}
+                      onClick={() => setDocumentIds((ids) => ids.filter((id) => id !== doc.id))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <textarea
+              ref={composer}
               className="composerInput"
-              aria-label="任务讨论内容"
-              placeholder={
-                chat
-                  ? '结合这份需求继续提问，或补充明确的业务规则…'
-                  : '先选择需求开始讨论，或点击左下角附件导入资料…'
-              }
-              disabled={!chat}
+              aria-label="对话内容"
+              placeholder="输入问题，或通过附件图标引用资料…"
+              disabled={loading}
               value={prompt}
               maxLength={12000}
               rows={2}
@@ -374,10 +480,15 @@ export default function ChatHomePage() {
             />
             <div className="composerActions">
               <div className="composerLeft">
-                <AttachmentMenu onNotice={setNotice} onDocuments={refresh} />
-                <span className="composerTip">
-                  {chat ? '仅当前工程 · Enter 发送' : '附件先保存在本机'}
-                </span>
+                <AttachmentMenu
+                  documents={state.documents}
+                  selected={selectedDocuments.map((doc) => doc.id)}
+                  onSelect={setDocumentIds}
+                  disabled={busy || running || loading}
+                  onNotice={setNotice}
+                  onDocuments={refresh}
+                />
+                <span className="composerTip">Enter 发送 · Shift + Enter 换行</span>
               </div>
               {running ? (
                 <button
@@ -386,10 +497,20 @@ export default function ChatHomePage() {
                 >
                   停止回答
                 </button>
+              ) : typing ? (
+                <button
+                  className="testButton"
+                  onClick={() => {
+                    setSkipTyping(true);
+                    setPendingReply(null);
+                  }}
+                >
+                  显示完整回复
+                </button>
               ) : (
                 <button
                   className="sendBtn"
-                  disabled={!chat || !prompt.trim() || busy}
+                  disabled={!prompt.trim() || busy || loading}
                   onClick={send}
                 >
                   发送
@@ -399,6 +520,41 @@ export default function ChatHomePage() {
           </div>
         </footer>
       </section>
+      {contextMenu && menuSession && (
+        <DeleteContextMenu
+          title={menuSession.title}
+          label="对话"
+          anchor={contextMenu}
+          disabled={busy || menuRunning}
+          disabledReason={menuRunning ? '此对话正在回答，请先停止回答再删除。' : undefined}
+          onClose={() => setContextMenu(null)}
+          onDelete={() => {
+            setContextMenu(null);
+            setDeleteError('');
+            setDeleting(menuSession);
+          }}
+        />
+      )}
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        title="删除对话"
+        content={
+          <>
+            <p>将永久删除「{deleting?.title}」及其消息记录，无法撤销。</p>
+            <p>已保留到测试任务的结论和引用文档会继续保留。</p>
+            {deleteError && (
+              <div className="workAlert error" role="alert">
+                {deleteError}
+              </div>
+            )}
+          </>
+        }
+        confirmText="删除对话"
+        danger
+        loading={busy}
+        onConfirm={() => void deleteChat()}
+        onCancel={() => setDeleting(null)}
+      />
       <Modal
         open={renaming}
         title="重命名对话"
@@ -432,13 +588,50 @@ export default function ChatHomePage() {
         </div>
       </Modal>
       <Modal
-        open={commandIds !== null}
-        title="工程命令与执行记录"
-        description="仅执行已通过工程范围与安全审查的命令。关闭此窗口不会停止运行。"
-        size="large"
-        onClose={() => setCommandIds(null)}
+        open={Boolean(retaining)}
+        title="保留到测试任务"
+        description={
+          retaining?.references?.[0]
+            ? `任务依据：${retaining.references[0].name}。保留本轮引用的版本。`
+            : undefined
+        }
+        onClose={() => setRetaining(null)}
+        dismissible={!busy}
+        footer={
+          <button
+            className="workButton primary"
+            disabled={busy}
+            onClick={() =>
+              chat &&
+              retaining &&
+              void perform(async () => {
+                const task = await api.keepChatMessage(chat.id, retaining.id, targetTask);
+                setRetaining(null);
+                setNotice(`已保留到测试任务「${task.name}」。`);
+              })
+            }
+          >
+            保留结论
+          </button>
+        }
       >
-        {commandIds && <CommandPanel ids={commandIds} />}
+        <div className="projectForm">
+          <label>
+            测试任务
+            <Select
+              aria-label="保留结论的测试任务"
+              value={targetTask}
+              onChange={setTargetTask}
+              options={[
+                { value: '', label: '新建测试任务' },
+                ...state.testTasks
+                  .filter((task) => task.sourceId === retaining?.references?.[0]?.id)
+                  .map((task) => ({ value: task.id, label: task.name })),
+              ]}
+            />
+          </label>
+          {error && <div className="workAlert error">{error}</div>}
+        </div>
       </Modal>
     </div>
   );

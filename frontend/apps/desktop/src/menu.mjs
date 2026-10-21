@@ -24,10 +24,6 @@ export function applicationMenuTemplate(platform = process.platform) {
         ]
       : []),
     {
-      label: '文件',
-      submenu: [isMac ? { label: '关闭窗口', role: 'close' } : { label: '退出', role: 'quit' }],
-    },
-    {
       label: '编辑',
       submenu: [
         { label: '撤销', role: 'undo' },

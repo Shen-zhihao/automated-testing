@@ -1,4 +1,6 @@
 import { readJsonResponse } from '../http.mjs';
+import { ImagePreviewError, MAX_IMAGE_BYTES, readImageResponse } from './images.mjs';
+import { setTimeout as delay } from 'node:timers/promises';
 
 export const API_ORIGIN = 'https://open.feishu.cn/open-apis';
 export const TOKEN_URL = 'https://accounts.feishu.cn/oauth/v3/token';
@@ -39,8 +41,9 @@ export class FeishuApiError extends Error {
 export class FeishuApi {
   constructor(fetchImpl = fetch) {
     this.fetch = fetchImpl;
+    this.nextImageRequestAt = 0;
   }
-  async request(url, options, signal) {
+  async request(url, options, signal, readBody = readJsonResponse) {
     try {
       const response = await this.fetch(url, {
         ...options,
@@ -51,8 +54,9 @@ export class FeishuApi {
       });
       let body;
       try {
-        body = await readJsonResponse(response);
-      } catch {
+        body = await readBody(response);
+      } catch (error) {
+        if (error instanceof ImagePreviewError) throw error;
         throw new FeishuApiError(null, response.status);
       }
       if (!body || typeof body !== 'object' || !response.ok || body.code || body.error)
@@ -60,7 +64,7 @@ export class FeishuApi {
       return body.data ?? body;
     } catch (error) {
       if (signal?.aborted) throw new Error('飞书操作已取消。');
-      if (error instanceof FeishuApiError) throw error;
+      if (error instanceof FeishuApiError || error instanceof ImagePreviewError) throw error;
       throw new Error('无法连接飞书，或请求超时。请检查网络后重试。');
     }
   }
@@ -92,5 +96,39 @@ export class FeishuApi {
       { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } },
       signal,
     );
+  }
+  async downloadImage(fileToken, documentId, accessToken, signal, limit = MAX_IMAGE_BYTES) {
+    if (!/^[A-Za-z0-9]{1,256}$/.test(fileToken) || !/^[A-Za-z0-9]+$/.test(documentId))
+      throw new Error('飞书图片标识无效。');
+    // 带上所属文档上下文；令牌仍只发送到固定的官方素材接口，禁止跟随重定向。
+    const extra = encodeURIComponent(JSON.stringify({ doc_id: documentId, doc_type: 'docx' }));
+    // 重试和并发读取共享节流窗口；素材接口上限为 5 QPS。
+    const requestAt = Math.max(Date.now(), this.nextImageRequestAt);
+    this.nextImageRequestAt = requestAt + 250;
+    await delay(Math.max(0, requestAt - Date.now()), undefined, { signal });
+    return this.request(
+      `${API_ORIGIN}/drive/v1/medias/${fileToken}/download?extra=${extra}`,
+      { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } },
+      signal,
+      async (response) => {
+        if (!response.ok || /\bjson\b/i.test(response.headers.get('content-type') ?? '')) {
+          const body = await readJsonResponse(response);
+          if (response.ok && !body?.code && !body?.error)
+            throw new ImagePreviewError('素材接口未返回图片内容');
+          return body;
+        }
+        return readImageResponse(response, Math.min(MAX_IMAGE_BYTES, limit));
+      },
+    ).catch((error) => {
+      if (
+        error instanceof FeishuApiError &&
+        (error.status === 403 ||
+          [20068, 99991672, 99991676, 99991679, 1770032, 91403].includes(error.code))
+      )
+        throw new ImagePreviewError(
+          '应用无权下载图片，请开通素材下载只读权限并发布，确认目标文档允许应用阅读和下载',
+        );
+      throw error;
+    });
   }
 }

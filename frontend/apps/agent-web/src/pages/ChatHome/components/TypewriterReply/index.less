@@ -1,0 +1,20 @@
+.typewriterReply .replyCursor {
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  margin-left: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+  background: var(--text-secondary);
+  animation: replyCursorBlink 0.9s ease-in-out infinite;
+}
+@keyframes replyCursorBlink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typewriterReply .replyCursor {
+    animation: none;
+  }
+}

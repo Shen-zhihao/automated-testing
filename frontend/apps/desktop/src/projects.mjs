@@ -104,6 +104,8 @@ export class ProjectStore {
 
 const documentActions = new Set([
   'document',
+  'analysis-draft',
+  'revise-analysis',
   'testing-features',
   'refresh-document',
   'delete-document',
@@ -111,7 +113,7 @@ const documentActions = new Set([
   'export-analysis',
   'cancel',
 ]);
-const chatActions = new Set(['chat-get', 'chat-send', 'chat-keep', 'chat-rename']);
+const chatActions = new Set(['chat-get', 'chat-send', 'chat-keep', 'chat-rename', 'chat-delete']);
 const taskActions = new Set([
   'testing-get',
   'testing-update',
@@ -136,6 +138,10 @@ export function assertProjectOperation(store, action, projectId, args) {
   projects.get(projectId);
   if (documentActions.has(action)) projects.assertResource(projectId, 'document', args[0]);
   if (chatActions.has(action)) projects.assertResource(projectId, 'chat', args[0]);
+  if (action === 'chat-send' && args[2] !== undefined) {
+    if (!Array.isArray(args[2]) || args[2].length > 5) throw new Error('每轮最多引用 5 份文档。');
+    for (const id of args[2]) projects.assertResource(projectId, 'document', id);
+  }
   if (taskActions.has(action)) projects.assertResource(projectId, 'task', args[0]);
   if (action === 'chat-keep' && args[2]) projects.assertResource(projectId, 'task', args[2]);
   if (action === 'chat-create' || action === 'testing-create') {

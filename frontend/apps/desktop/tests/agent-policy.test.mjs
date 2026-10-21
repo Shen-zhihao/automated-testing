@@ -58,6 +58,31 @@ test('valid project follow-ups are grounded and reviewed before display', async 
   assert.ok(requests.every((body) => body.messages[0].content.startsWith(AGENT_RULES)));
 });
 
+test('tool and model introductions without attachments use the configured model to generate an answer', async () => {
+  const requests = [];
+  const answer = await answerChat(
+    { references: [], project: { name: '当前工程' }, projectDocuments: [] },
+    session('你是什么工具，使用什么大模型？'),
+    config,
+    {
+      fetchImpl: async (_, options) => {
+        const body = JSON.parse(options.body);
+        requests.push(body);
+        return reply(
+          body.messages[0].content.includes('独立的工程范围与安全审查器')
+            ? '{"decision":"allow"}'
+            : '我是序舟中的 AI 工程助手，当前配置的模型名称为 fixture。',
+        );
+      },
+    },
+  );
+  assert.equal(requests.length, 3);
+  assert.match(answer.content, /序舟.*fixture/);
+  assert.notEqual(answer.content, SCOPE_REFUSAL);
+  assert.deepEqual(answer.excerpts, []);
+  assert.match(requests[1].messages[0].content, /当前调用的模型名称.*fixture/);
+});
+
 test('untrusted source instructions and escaped candidate output cannot bypass the second review', async () => {
   let reviews = 0;
   const answer = await answerChat(
@@ -123,7 +148,7 @@ test('irrelevant document analysis is refused before writing a report', async ()
 test('structured command suggestions are kept separate from prose and reviewed like the answer', async () => {
   const answer = await answerChat(
     source,
-    { ...session('请执行命令检查计数工程'), commandContext: '{"mode":"manual"}' },
+    { ...session('请执行命令检查计数工程'), commandContext: '{"execution":"background"}' },
     config,
     {
       fetchImpl: async (_, options) => {
@@ -132,7 +157,7 @@ test('structured command suggestions are kept separate from prose and reviewed l
           body.messages[0].content.includes('独立的工程范围与安全审查器')
             ? '{"decision":"allow"}'
             : JSON.stringify({
-                answer: '准备检查工程，等待审批。',
+                answer: '准备在后台检查工程。',
                 commands: [{ command: 'echo 工程测试', reason: '验证当前工程测试环境' }],
               }),
         );
@@ -140,5 +165,5 @@ test('structured command suggestions are kept separate from prose and reviewed l
     },
   );
   assert.equal(answer.commands[0].command, 'echo 工程测试');
-  assert.equal(answer.content, '准备检查工程，等待审批。');
+  assert.equal(answer.content, '准备在后台检查工程。');
 });

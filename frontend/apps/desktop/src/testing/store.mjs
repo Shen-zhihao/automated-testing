@@ -79,13 +79,19 @@ export class TestingStore {
       json_extract(s.data, '$.documentId') AS documentId, json_extract(s.data, '$.name') AS name,
       json_extract(s.data, '$.analysisCreatedAt') AS analysisCreatedAt,
       json_extract(s.data, '$.features') AS features,
-      COALESCE(d.content = json_extract(s.data, '$.content') AND json_extract(d.analysis, '$.content') = json_extract(s.data, '$.analysis'), 0) AS unchanged
+      COALESCE(json_extract(s.data, '$.warnings'), '[]') AS warnings,
+      COALESCE(d.content = json_extract(s.data, '$.content') AND COALESCE(json_extract(d.analysis, '$.content'), '') = json_extract(s.data, '$.analysis'), 0) AS unchanged
       FROM test_sources s LEFT JOIN documents d ON d.id = json_extract(s.data, '$.documentId') WHERE s.id = ?`,
       )
       .get(id);
     if (!row) throw new Error('需求快照不存在。');
     const { unchanged, ...reference } = row;
-    return { ...reference, features: JSON.parse(row.features), changed: !unchanged };
+    return {
+      ...reference,
+      features: JSON.parse(row.features),
+      warnings: JSON.parse(row.warnings),
+      changed: !unchanged,
+    };
   }
   recentRunSummaries(taskId) {
     return this.store.db
@@ -108,6 +114,10 @@ export class TestingStore {
       .run(value.id, value.updatedAt, JSON.stringify(value));
     return value;
   }
+  deleteSession(id) {
+    this.session(id);
+    this.store.db.prepare('DELETE FROM test_sessions WHERE id = ?').run(id);
+  }
   saveTask(value) {
     this.store.db
       .prepare('INSERT OR REPLACE INTO test_tasks VALUES (?, ?, ?)')
@@ -120,10 +130,11 @@ export class TestingStore {
       .run(value.id, value.taskId, value.createdAt, JSON.stringify(value));
     return value;
   }
-  snapshot(document) {
-    if (!document.analysis?.content) throw new Error('请先在文档分析中生成实施与验收文档。');
+  snapshot(document, { requireAnalysis = true } = {}) {
+    if (requireAnalysis && !document.analysis?.content)
+      throw new Error('请先在文档分析中生成实施与验收文档。');
     const id = createHash('sha256')
-      .update(JSON.stringify([document.id, document.content, document.analysis.content]))
+      .update(JSON.stringify([document.id, document.content, document.analysis?.content || '']))
       .digest('hex');
     const value = {
       id,
@@ -133,9 +144,10 @@ export class TestingStore {
       source: document.source,
       kind: document.kind,
       content: document.content,
-      analysis: document.analysis.content,
-      analysisCreatedAt: document.analysis.createdAt || document.updatedAt,
-      features: extractFeatures(document.analysis.content),
+      analysis: document.analysis?.content || '',
+      analysisCreatedAt: document.analysis ? document.analysis.createdAt || document.updatedAt : '',
+      features: extractFeatures(document.analysis?.content || ''),
+      warnings: document.warnings || [],
       createdAt: new Date().toISOString(),
     };
     this.store.db
