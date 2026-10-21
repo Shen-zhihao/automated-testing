@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Windows / macOS 本地自动化测试 Agent 原型",
+  "description": "序舟 · Windows / macOS 本地 AI 工程工作台",
   "author": "Project Team",
   "main": "src/main.mjs",
   "scripts": {
@@ -12,6 +12,7 @@
     "typecheck": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs",
     "check:package": "node scripts/check-package.mjs",
+    "brand:icons": "node scripts/export-brand-icons.mjs",
     "package:mac": "electron-builder --mac --publish never",
     "package:win": "electron-builder --win --publish never"
   },
@@ -22,13 +23,14 @@
   },
   "build": {
     "appId": "local.testagent.desktop",
-    "productName": "自动化测试助手",
+    "productName": "序舟",
     "asar": true,
     "directories": {
       "output": "../../../artifacts/desktop"
     },
     "files": [
       "src/**/*.{mjs,cjs}",
+      "assets/brand/icon.png",
       "package.json",
       "!**/node_modules/**/*.map",
       "!**/node_modules/**/{test,tests,__tests__,example,examples,benchmark,benchmarks,coverage,docs}/**",
@@ -50,6 +52,7 @@
       }
     ],
     "mac": {
+      "icon": "assets/brand/icon.icns",
       "category": "public.app-category.developer-tools",
       "target": [
         {
@@ -62,6 +65,7 @@
       ]
     },
     "win": {
+      "icon": "assets/brand/icon.ico",
       "target": [
         {
           "target": "nsis",

@@ -1,4 +1,5 @@
 import { useProject } from '@/hooks/useProject';
+import { APP_NAME } from '@/brand';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { RequirementFeature, WorkChat } from '@project/shared-api';
@@ -243,7 +244,7 @@ export default function ChatHomePage() {
           <div className="messageList">
             {chat?.messages.map((message) => (
               <article key={message.id} className={`messageItem ${message.role}`}>
-                <div className="messageRole">{message.role === 'user' ? '你' : '测试助手'}</div>
+                <div className="messageRole">{message.role === 'user' ? '你' : APP_NAME}</div>
                 <div className="messageBubble">
                   {message.role === 'assistant' ? (
                     <MarkdownContent>{message.content}</MarkdownContent>

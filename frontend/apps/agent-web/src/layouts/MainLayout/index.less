@@ -14,11 +14,19 @@
   border-right: 1px solid var(--border);
   padding: 26px 14px 12px;
 }
-.brandBlock {
+.sidebarTop {
   display: flex;
   align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.brandBlock {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
   gap: 11px;
-  padding: 0 10px 26px;
+  padding-left: 8px;
   strong {
     font-size: 16px;
     color: var(--text-title);
@@ -32,15 +40,29 @@
     margin-top: 4px;
   }
 }
+.sidebarToggle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 30px;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  &:hover {
+    background: var(--surface-tertiary);
+    color: var(--text-primary);
+  }
+}
 .brandMark {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: 11px;
-  box-shadow: 0 4px 9px var(--shadow-color);
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  .brandLogo {
+    width: 100%;
+    height: 100%;
+  }
 }
 .sidebarCreate {
   display: flex;
@@ -64,7 +86,7 @@
   font-size: 13px;
   color: var(--text-secondary);
   border-radius: 8px;
-  span {
+  .sidebarCount {
     margin-left: auto;
     font-size: 11px;
   }
@@ -74,11 +96,15 @@
     font-weight: 600;
   }
 }
+.sidebarText {
+  min-width: 0;
+}
 .sidebarLabel {
-  font-size: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
   color: var(--text-secondary);
-  margin: 24px 12px 11px;
-  letter-spacing: 1px;
+  margin: 22px 12px 10px;
 }
 .sidebarSearch {
   display: flex;
@@ -137,6 +163,9 @@
   &.tone3 {
     background: var(--mark-amber);
   }
+}
+.projectInitial {
+  display: none;
 }
 .projectSectionNav {
   padding: 3px 0 8px 13px;
@@ -347,5 +376,87 @@
   }
   .localStatus span {
     display: none;
+  }
+}
+.mainLayout.sidebarCollapsed {
+  .projectSidebar {
+    width: 68px;
+    padding: 18px 10px 12px;
+  }
+  .sidebarTop {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .brandBlock {
+    flex: none;
+    justify-content: center;
+    padding: 0;
+  }
+  .brandMark {
+    width: 32px;
+    height: 32px;
+  }
+  .sidebarToggle {
+    width: 36px;
+  }
+  .brandCopy,
+  .sidebarText,
+  .sidebarCount,
+  .sidebarLabel,
+  .sidebarSearch,
+  .sidebarEmpty,
+  .localStatus {
+    display: none;
+  }
+  .sidebarCreate,
+  .sidebarAll {
+    justify-content: center;
+    padding: 10px;
+  }
+  .sidebarAll {
+    margin-top: 12px;
+  }
+  .sidebarProjectList {
+    margin-top: 14px;
+  }
+  .sidebarProject {
+    justify-content: center;
+    padding: 6px;
+    .projectDot {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-tertiary);
+      color: var(--text-primary);
+      font-size: 12px;
+    }
+    .projectInitial {
+      display: block;
+    }
+    &.selected .projectDot {
+      background: var(--surface-accent);
+      border-color: var(--border-strong);
+      color: var(--text-accent);
+    }
+  }
+  .projectSectionNav {
+    margin: 0;
+    padding: 3px 0 10px;
+    border: 0;
+    a {
+      justify-content: center;
+      height: 36px;
+      padding: 0;
+    }
+  }
+  .sidebarFooter > button,
+  .sidebarFooter > a {
+    height: 36px;
+    justify-content: center;
+    padding: 0;
   }
 }

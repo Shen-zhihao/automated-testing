@@ -6,6 +6,6 @@ from agent_runtime.routes.health import router
 
 
 def create_app() -> FastAPI:
-    app = create_application("Test Agent Runtime")
+    app = create_application("序舟 Runtime")
     app.include_router(router, prefix="/internal")
     return app

@@ -6,7 +6,13 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { WorkspaceStore } from '../src/store.mjs';
-import { AppearanceService, windowBackground } from '../src/appearance.mjs';
+import {
+  AppearanceService,
+  windowBackground,
+  windowChrome,
+  titleBarOverlay,
+  applyWindowAppearance,
+} from '../src/appearance.mjs';
 
 class NativeThemeFixture extends EventEmitter {
   constructor(dark = false) {
@@ -120,6 +126,32 @@ test('bad legacy appearance values fall back to system and lifecycle cleanup rem
   store.close();
 });
 
+test('native Windows titlebar buttons follow theme changes; macOS retains its traffic lights without calling Windows APIs', () => {
+  const backgrounds = [],
+    controls = [];
+  const window = {
+    setBackgroundColor: (color) => backgrounds.push(color),
+    setTitleBarOverlay: (options) => controls.push(options),
+  };
+  for (const theme of ['light', 'dark', 'light']) {
+    const options = windowChrome(theme, 'win32');
+    assert.equal(options.titleBarStyle, 'hidden');
+    assert.equal(options.titleBarOverlay.height, 40);
+    applyWindowAppearance(window, theme, 'win32');
+    assert.deepEqual(controls.at(-1), options.titleBarOverlay);
+    assert.notEqual(controls.at(-1).color, controls.at(-1).symbolColor);
+  }
+  assert.notEqual(controls[0].color, controls[1].color);
+  assert.deepEqual(controls[0], controls[2]);
+  const mac = windowChrome('dark', 'darwin');
+  assert.equal(mac.titleBarStyle, 'hidden');
+  assert.deepEqual(mac.trafficLightPosition, { x: 14, y: 13 });
+  assert.equal('titleBarOverlay' in mac, false);
+  applyWindowAppearance(window, 'dark', 'darwin');
+  assert.equal(controls.length, 3);
+  assert.equal(backgrounds.at(-1), windowBackground('dark'));
+});
+
 test('all UI color tokens exist in both palettes, and key text/status pairs stay readable in each mode', async () => {
   const root = fileURLToPath(new URL('../../agent-web/src/', import.meta.url));
   const theme = await readFile(path.join(root, 'styles/theme.less'), 'utf8');
@@ -131,6 +163,22 @@ test('all UI color tokens exist in both palettes, and key text/status pairs stay
     ),
   );
   assert.deepEqual(Object.keys(palettes[0]).sort(), Object.keys(palettes[1]).sort());
+  for (const [index, mode] of ['light', 'dark'].entries()) {
+    assert.equal(palettes[index]['surface-app'], windowBackground(mode));
+    assert.equal(palettes[index]['surface-titlebar'], titleBarOverlay(mode).color);
+    assert.equal(palettes[index]['text-primary'], titleBarOverlay(mode).symbolColor);
+    for (const token of [
+      'surface-app',
+      'surface-titlebar',
+      'surface-sidebar',
+      'surface-primary',
+      'surface-secondary',
+      'surface-tertiary',
+    ]) {
+      const channels = palettes[index][token].slice(1).match(/../g);
+      assert.equal(new Set(channels).size, 1, `${mode} ${token} must be neutral gray`);
+    }
+  }
   const luminance = (hex) =>
     hex
       .slice(1)
@@ -141,13 +189,16 @@ test('all UI color tokens exist in both palettes, and key text/status pairs stay
   for (const palette of palettes)
     for (const [foreground, background] of [
       ['text-primary', 'surface-primary'],
+      ['text-primary', 'surface-titlebar'],
       ['text-secondary', 'surface-primary'],
+      ['text-secondary', 'surface-sidebar'],
       ['text-muted', 'surface-secondary'],
       ['text-accent', 'surface-accent'],
       ['on-accent', 'accent'],
       ['success', 'surface-success'],
       ['warning', 'surface-warning'],
       ['danger', 'surface-danger'],
+      ['terminal-text', 'terminal-bg'],
     ]) {
       const [a, b] = [luminance(palette[foreground]), luminance(palette[background])].sort(
         (a, b) => a - b,

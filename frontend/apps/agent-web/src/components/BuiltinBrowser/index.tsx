@@ -34,11 +34,11 @@ export default function BuiltinBrowser({
         const rect = host.current.getBoundingClientRect();
         const top = Math.max(0, rect.top),
           bottom = Math.min(rect.bottom, window.innerHeight);
-        const modal = Boolean(document.querySelector('[role="dialog"]'));
+        const overlay = Boolean(document.querySelector('[role="dialog"], [role="menu"]'));
         void api
           .attachBrowser(
             info.id,
-            !pageVisible || modal || bottom <= top
+            !pageVisible || overlay || bottom <= top
               ? null
               : { x: rect.left, y: top, width: rect.width, height: bottom - top },
           )
@@ -47,7 +47,7 @@ export default function BuiltinBrowser({
     };
     const observer = new ResizeObserver(update);
     observer.observe(host.current);
-    // Modals are portals directly under body; ignore document/chat subtree mutations.
+    // Dialogs and menus are body portals; keep native webpages behind these overlays.
     const mutations = new MutationObserver(update);
     mutations.observe(document.body, { childList: true });
     window.addEventListener('resize', update);

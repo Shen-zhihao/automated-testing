@@ -13,7 +13,12 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APP_URL, DEV_URL, isAppNavigation, resolveUiResource } from './resources.mjs';
-import { AppearanceService, windowBackground } from './appearance.mjs';
+import {
+  AppearanceService,
+  windowBackground,
+  windowChrome,
+  applyWindowAppearance,
+} from './appearance.mjs';
 import { StorageService } from './storage.mjs';
 import { SettingsService } from './settings.mjs';
 import { WorkspaceService } from './workspace.mjs';
@@ -28,11 +33,12 @@ import { projectBrowserStorage, purgeDeletedProfiles } from './testing/browser-s
 
 const development = !app.isPackaged && process.argv.includes('--dev');
 const sourceRoot = path.dirname(fileURLToPath(import.meta.url));
+const appIcon = path.resolve(sourceRoot, '../assets/brand/icon.png');
 const uiRoot = app.isPackaged
   ? path.join(process.resourcesPath, 'ui')
   : path.resolve(sourceRoot, '../../agent-web/dist');
 
-// 内部标识和数据目录保持稳定，菜单、窗口及关于面板使用中文展示名称。
+// 旧名称也是 safeStorage 的系统凭据身份；品牌更名只更新展示名称和图标。
 app.setName('Test Agent');
 app.setPath(
   'userData',
@@ -57,11 +63,13 @@ let appearance;
 async function createWindow() {
   const window = new BrowserWindow({
     title: APP_DISPLAY_NAME,
+    icon: appIcon,
     width: 1280,
     height: 840,
     minWidth: 780,
     minHeight: 600,
     backgroundColor: windowBackground(appearance.public().theme),
+    ...windowChrome(appearance.public().theme),
     show: false,
     webPreferences: {
       preload: path.join(sourceRoot, 'preload.cjs'),
@@ -129,8 +137,7 @@ if (!['darwin', 'win32'].includes(process.platform)) {
       let workspace;
       appearance = new AppearanceService(store, nativeTheme, {
         onChanged: ({ theme }) => {
-          for (const window of BrowserWindow.getAllWindows())
-            window.setBackgroundColor(windowBackground(theme));
+          for (const window of BrowserWindow.getAllWindows()) applyWindowAppearance(window, theme);
           for (const browser of workspace?.testing?.browsers.values() || [])
             browser.updateAppearance?.();
           broadcast('workspace:appearance-changed');
@@ -236,7 +243,8 @@ if (!['darwin', 'win32'].includes(process.platform)) {
             isAppNavigation(contents.getURL(), development),
         );
       });
-      app.setAboutPanelOptions({ applicationName: APP_DISPLAY_NAME });
+      app.dock?.setIcon(appIcon);
+      app.setAboutPanelOptions({ applicationName: APP_DISPLAY_NAME, iconPath: appIcon });
       Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenuTemplate()));
       await createWindow();
       app.on('activate', () => {

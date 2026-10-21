@@ -1,4 +1,4 @@
-export const APP_DISPLAY_NAME = '自动化测试助手';
+export const APP_DISPLAY_NAME = '序舟';
 
 export function applicationMenuTemplate(platform = process.platform) {
   const isMac = platform === 'darwin';

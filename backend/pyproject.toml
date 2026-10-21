@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "test-agent-backend"
 version = "0.1.0"
-description = "自动化测试 Agent 后端服务骨架"
+description = "序舟 AI 工程工作台的可选本机服务骨架"
 authors = ["Project Team"]
 package-mode = false
 

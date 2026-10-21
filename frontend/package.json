@@ -2,7 +2,7 @@
   "name": "test-agent-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "自动化测试 Agent UI 与框架原型",
+  "description": "序舟 · 本地 AI 工程工作台",
   "scripts": {
     "dev": "pnpm --filter agent-web dev",
     "dev:agent": "pnpm --filter agent-web dev",

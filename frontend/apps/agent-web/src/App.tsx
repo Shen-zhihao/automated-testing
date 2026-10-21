@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, Outlet } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
+import WindowTitleBar from '@/components/WindowTitleBar';
 import { WorkspaceProvider, useWorkspace } from '@/hooks/useWorkspace';
 import './App.less';
 import { useProject } from '@/hooks/useProject';
@@ -32,6 +33,7 @@ export default function App() {
   return (
     <WorkspaceProvider>
       <div className="appRoot">
+        <WindowTitleBar />
         <div className="appContent">
           <Suspense
             fallback={

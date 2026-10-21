@@ -1,4 +1,4 @@
-# Test Agent 可选 Python 本机模块
+# 序舟可选 Python 本机模块
 
 保留 `common-lib`、`api-gateway-service` 和 `agent-runtime-service` 三个包，统一使用 `src` 目录与包名导入。目前仅提供本机健康检查，Electron 桌面原型不依赖、也不自动启动这些模块。
 

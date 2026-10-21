@@ -18,7 +18,7 @@ const modes: {
   { mode: 'light', label: '浅色', icon: 'sun', description: '始终使用明亮界面' },
   { mode: 'dark', label: '深色', icon: 'moon', description: '始终使用深色界面' },
 ];
-export default function AppearanceSettings({ compact = false }: { compact?: boolean }) {
+export default function AppearanceSettings() {
   const { appearance, setMode } = useAppearance();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -33,27 +33,6 @@ export default function AppearanceSettings({ compact = false }: { compact?: bool
       setBusy(false);
     }
   };
-  if (compact)
-    return (
-      <div className="appearanceQuick">
-        <label>
-          <Icon name={appearance.theme === 'dark' ? 'moon' : 'sun'} size={16} />
-          <select
-            aria-label="外观模式"
-            value={appearance.mode}
-            disabled={busy}
-            onChange={(event) => void change(event.target.value as AppearanceMode)}
-          >
-            {modes.map((item) => (
-              <option key={item.mode} value={item.mode}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {error && <p role="alert">{error}</p>}
-      </div>
-    );
   return (
     <section className="settingsCard appearanceCard" aria-labelledby="appearance-title">
       <div className="settingsTitle">

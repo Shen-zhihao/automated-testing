@@ -13,7 +13,7 @@ def create_application(title: str) -> FastAPI:
     app = FastAPI(
         title=title,
         version="0.1.0",
-        description="自动化测试 Agent 服务骨架；目前仅提供健康检查。",
+        description="序舟 AI 工程工作台的可选本机服务骨架；目前仅提供健康检查。",
         debug=settings.app_env == "development",
     )
     app.add_middleware(

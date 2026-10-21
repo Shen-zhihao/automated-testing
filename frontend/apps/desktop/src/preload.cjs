@@ -11,6 +11,7 @@ const initialTheme = process.argv
   ?.split('=')[1]
   ?.split(':');
 contextBridge.exposeInMainWorld('desktop', {
+  platform: process.platform,
   initialAppearance:
     initialTheme &&
     ['system', 'light', 'dark'].includes(initialTheme[0]) &&

@@ -17,6 +17,9 @@ const paths = {
   search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
   globe: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM3 12h18M12 3a17 17 0 0 1 0 18 17 17 0 0 1 0-18Z',
   edit: 'm16 3 5 5M3 21l5-1L21 7l-5-5L3 15v6Z',
+  sidebarCollapse: 'M3 4h18v16H3zM9 4v16m7-8-3 3 3 3',
+  sidebarExpand: 'M3 4h18v16H3zM9 4v16m4-8 3 3-3 3',
+  trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7',
 } as const;
 export type IconName = keyof typeof paths;
 export default function Icon({ name, size = 18 }: { name: IconName; size?: number }) {

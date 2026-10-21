@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import type { ProjectFilesInfo } from '@project/shared-api';
 import { useProject } from '@/hooks/useProject';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import Modal from '@/components/Modal';
 import Icon from '@/components/Icon';
+import DeleteProjectDialog from '@/components/DeleteProjectDialog';
 import './index.less';
 
 export const fileSize = (bytes: number) =>
@@ -15,17 +15,14 @@ export const fileSize = (bytes: number) =>
       : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 export default function ProjectFilesPage() {
   const { api, project } = useProject(),
-    { state, refresh } = useWorkspace(),
-    navigate = useNavigate();
+    { state, refresh } = useWorkspace();
   const [info, setInfo] = useState<ProjectFilesInfo | null>(null),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('');
   const [documents, setDocuments] = useState<string[]>([]),
     [exports, setExports] = useState<string[]>([]);
-  const [action, setAction] = useState<'files' | 'cache' | 'delete' | 'detach' | 'commands' | null>(
-      null,
-    ),
-    [confirmation, setConfirmation] = useState(''),
+  const [action, setAction] = useState<'files' | 'cache' | 'detach' | 'commands' | null>(null),
+    [deleteOpen, setDeleteOpen] = useState(false),
     [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true;
@@ -49,11 +46,6 @@ export default function ProjectFilesPage() {
     setError('');
     setNotice('');
     try {
-      if (action === 'delete') {
-        await api.deleteProject(confirmation);
-        navigate('/projects', { replace: true });
-        return;
-      }
       if (action === 'cache') await api.clearCache();
       else if (action === 'commands') await api.cleanFiles({ cleanCommands: true });
       else
@@ -77,7 +69,6 @@ export default function ProjectFilesPage() {
   const titles = {
     files: '清理所选文件',
     cache: '清理浏览器缓存',
-    delete: '删除整个工程',
     detach: '保留文件并解除关联',
     commands: '清理命令工作目录',
   };
@@ -262,9 +253,8 @@ export default function ProjectFilesPage() {
         <button
           className="workButton danger"
           onClick={() => {
-            setConfirmation('');
             setError('');
-            setAction('delete');
+            setDeleteOpen(true);
           }}
         >
           删除工程
@@ -280,34 +270,14 @@ export default function ProjectFilesPage() {
             <button className="workButton" disabled={busy} onClick={() => setAction(null)}>
               取消
             </button>
-            <button
-              className={`workButton ${action === 'delete' ? 'danger' : 'primary'}`}
-              disabled={busy || (action === 'delete' && confirmation !== project.name)}
-              onClick={() => void run()}
-            >
+            <button className="workButton primary" disabled={busy} onClick={() => void run()}>
               {busy ? '正在处理…' : '确认'}
             </button>
           </>
         }
       >
         <div className="fileConfirmation">
-          {action === 'delete' ? (
-            <>
-              <p>
-                将清除 {state.documents.length} 份需求、{state.testSessions.length} 个对话、
-                {state.testTasks.length}{' '}
-                个测试任务，以及本工程的命令文件、导出文件和浏览器存储。运行中的任务必须先停止。
-              </p>
-              <label>
-                输入工程名称「{project.name}」确认
-                <input
-                  value={confirmation}
-                  onChange={(event) => setConfirmation(event.target.value)}
-                  autoComplete="off"
-                />
-              </label>
-            </>
-          ) : action === 'files' ? (
+          {action === 'files' ? (
             <p>
               将清除 {documents.length} 份需求及其关联讨论、测试记录，并删除 {exports.length}{' '}
               份已登记导出文件。此操作无法撤销。
@@ -331,6 +301,7 @@ export default function ProjectFilesPage() {
           )}
         </div>
       </Modal>
+      {deleteOpen && <DeleteProjectDialog project={project} onClose={() => setDeleteOpen(false)} />}
     </div>
   );
 }

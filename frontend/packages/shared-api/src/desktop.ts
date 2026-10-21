@@ -221,6 +221,7 @@ export interface AppearanceState {
   theme: 'light' | 'dark';
 }
 export interface DesktopBridge {
+  platform: 'darwin' | 'win32';
   initialAppearance: AppearanceState | null;
   getAppearance(): Promise<AppearanceState>;
   setAppearance(mode: AppearanceMode): Promise<AppearanceState>;

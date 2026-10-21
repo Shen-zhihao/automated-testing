@@ -1,0 +1,25 @@
+.windowTitleBar {
+  flex-shrink: 0;
+  height: env(titlebar-area-height, 40px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 150px;
+  background: var(--surface-titlebar);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+  font-weight: 500;
+  user-select: none;
+  app-region: drag;
+  -webkit-app-region: drag;
+  &.darwin {
+    padding: 0 90px;
+  }
+  span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}

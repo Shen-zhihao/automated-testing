@@ -1,0 +1,36 @@
+.projectContextMenu {
+  position: fixed;
+  z-index: 1200;
+  width: 190px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  box-shadow: 0 8px 28px var(--shadow-color);
+  .projectContextTitle {
+    padding: 7px 10px 9px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: left;
+    font-size: 13px;
+    color: var(--danger);
+    &:hover,
+    &:focus-visible {
+      outline: none;
+      background: var(--surface-danger);
+    }
+  }
+}
