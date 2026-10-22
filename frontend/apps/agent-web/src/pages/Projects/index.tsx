@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import Icon from '@/components/Icon';
-import ProjectDialog from '@/components/ProjectDialog';
 import DesktopRequired from '@/components/DesktopRequired';
 import './index.less';
+const ProjectDialog = lazy(() => import('@/components/ProjectDialog'));
 
 export default function ProjectsPage() {
   const { state, error } = useWorkspace(),
@@ -99,11 +99,15 @@ export default function ProjectsPage() {
           )}
         </div>
       )}
-      <ProjectDialog
-        open={creating}
-        onClose={() => setCreating(false)}
-        onSaved={(id) => navigate(`/projects/${id}/overview`)}
-      />
+      {creating && (
+        <Suspense fallback={null}>
+          <ProjectDialog
+            open={creating}
+            onClose={() => setCreating(false)}
+            onSaved={(id) => navigate(`/projects/${id}/overview`)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

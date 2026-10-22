@@ -8,6 +8,7 @@ import MarkdownContent from '@/components/MarkdownContent';
 import Select from '@/components/Select';
 import { useBrowserWorkspace } from '@/components/BrowserWorkspace';
 import ExecutionRecord from './components/ExecutionRecord';
+import TaskFeedback from './components/TaskFeedback';
 import '../../styles/testing.less';
 const statusLabels: Record<string, string> = {
   running: '执行中',
@@ -51,7 +52,7 @@ export default function TaskDetailPage() {
     return () => {
       active = false;
     };
-  }, [taskId, updated, job?.status, job?.message]);
+  }, [taskId, updated, job?.status, job?.message, job?.revision]);
   useEffect(() => {
     if (task) {
       setName(task.name);
@@ -60,7 +61,7 @@ export default function TaskDetailPage() {
     }
   }, [task?.id]);
   useEffect(() => {
-    setSelectedCases([]);
+    setSelectedCases(task?.planDraft?.caseIds ?? []);
     setHistoryId('');
   }, [task?.report?.id]);
   if (!api) return <DesktopRequired />;
@@ -176,30 +177,12 @@ export default function TaskDetailPage() {
           </button>
         </div>
       </details>
-      {error && (
-        <div className="testError" role="alert">
-          {error}
-        </div>
-      )}
-      {notice && (
-        <div className="testNotice" role="status">
-          {notice}
-        </div>
-      )}
-      {job && (
-        <div className={`testJob ${job.status}`} role="status">
-          {job.message}
-          {running && (
-            <button
-              className="testButton"
-              style={{ marginLeft: 12 }}
-              onClick={() => void api.cancelTesting(`task:${taskId}`)}
-            >
-              停止当前操作
-            </button>
-          )}
-        </div>
-      )}
+      <TaskFeedback
+        error={error}
+        notice={notice}
+        job={job}
+        onCancel={() => void api.cancelTesting(`task:${taskId}`)}
+      />
       <nav className="testTabs" aria-label="测试任务内容">
         {[
           ['document', '详细测试文档'],
@@ -231,7 +214,11 @@ export default function TaskDetailPage() {
                   })
                 }
               >
-                {task.report ? '重新生成测试文档' : '生成详细测试文档'}
+                {task.documentDraft
+                  ? '继续生成测试文档'
+                  : task.report
+                    ? '重新生成测试文档'
+                    : '生成详细测试文档'}
               </button>
               <button
                 className="testButton"
@@ -248,6 +235,14 @@ export default function TaskDetailPage() {
             </div>
           </div>
           {changed && <p className="testMuted">请先保存上方的任务设置。</p>}
+          {task.documentDraft && (
+            <p className="testNotice">
+              {task.documentDraft.total
+                ? `已保存测试文档 ${task.documentDraft.completed}/${task.documentDraft.total} 段。`
+                : '已保存测试依据的梳理进度。'}
+              中断后可继续生成，当前成功版本在完整生成并校验后更新。
+            </p>
+          )}
           {task.reportStale && (
             <div className="testNotice">
               讨论结论或测试范围已经更新，请重新生成测试文档。旧版本仍可查看。
@@ -331,6 +326,12 @@ export default function TaskDetailPage() {
               条用例。模型会读取当前网页的文字与控件；无法可靠自动化的用例会注明人工核验原因。
             </p>
             {!task.report && <p>请先在“详细测试文档”中生成用例。</p>}
+            {task.planDraft && (
+              <p className="testNotice">
+                已保存执行计划 {task.planDraft.completed}/{task.planDraft.total} 条用例。
+                保持选中用例、页面与模型不变可继续生成；全部校验通过后可审阅并执行。
+              </p>
+            )}
             {task.report?.cases.map((item) => (
               <details key={item.id} className="testCase">
                 <summary>
@@ -383,7 +384,7 @@ export default function TaskDetailPage() {
                   })
                 }
               >
-                生成执行计划 ({selectedCases.length}/5)
+                {task.planDraft ? '继续生成执行计划' : '生成执行计划'} ({selectedCases.length}/5)
               </button>
             </div>
           </section>

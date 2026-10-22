@@ -15,7 +15,7 @@ export class WorkspaceStore {
       'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000; PRAGMA secure_delete = ON;',
     );
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 9) {
+    if (version > 10) {
       this.db.close();
       throw new Error('本地数据由更新版本创建，请升级应用后打开。');
     }
@@ -86,6 +86,22 @@ export class WorkspaceStore {
         data TEXT NOT NULL
       );
       PRAGMA user_version = 9; COMMIT;`);
+    if (version < 10)
+      this.db.exec(`BEGIN;
+      CREATE INDEX command_runs_summary ON command_runs (
+        project_id, created_at DESC, id DESC,
+        json_remove(json_set(data, '$.output', substr(json_extract(data, '$.output'), -500)), '$.fingerprint')
+      );
+      CREATE INDEX test_tasks_summary ON test_tasks (
+        json_extract(data, '$.projectId'), updated_at DESC, id,
+        json_extract(data, '$.name'), json_extract(data, '$.scope'), json_extract(data, '$.sourceId'),
+        json_extract(data, '$.url'), json_array_length(data, '$.notes'),
+        json_type(data, '$.report') = 'object',
+        COALESCE(json_extract(data, '$.report.revision') != json_extract(data, '$.revision'), 0),
+        COALESCE(json_array_length(data, '$.report.cases'), 0)
+      );
+      CREATE INDEX test_sources_summary ON test_sources (id, json_extract(data, '$.name'));
+      PRAGMA user_version = 10; COMMIT;`);
     this.projects = new ProjectStore(this);
   }
 

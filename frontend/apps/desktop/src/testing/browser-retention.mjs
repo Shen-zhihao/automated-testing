@@ -3,7 +3,7 @@
 export class BrowserRetention {
   constructor(
     browsers,
-    { isBusy = () => false, onRetire = () => {}, idleMs = 5 * 60_000, maxHidden = 6 } = {},
+    { isBusy = () => false, onRetire = () => {}, idleMs = 2 * 60_000, maxHidden = 2 } = {},
   ) {
     Object.assign(this, { browsers, isBusy, onRetire, idleMs, maxHidden });
     this.hidden = new Map();

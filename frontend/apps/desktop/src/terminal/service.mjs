@@ -63,7 +63,7 @@ export class TerminalService {
     return this.store.db
       .prepare(
         `SELECT json_remove(json_set(data, '$.output', substr(json_extract(data, '$.output'), -500)), '$.fingerprint') AS data
-        FROM command_runs WHERE project_id=? ORDER BY created_at DESC, id DESC LIMIT 100`,
+        FROM command_runs INDEXED BY command_runs_summary WHERE project_id=? ORDER BY created_at DESC, id DESC LIMIT 100`,
       )
       .all(id)
       .map((row) => {

@@ -13,12 +13,15 @@ import Icon from '@/components/Icon';
 import CommandPanel from '@/components/CommandPanel';
 import AttachmentMenu from './components/AttachmentMenu';
 import TypewriterReply from './components/TypewriterReply';
+import MessageWindow from './components/MessageWindow';
+import { useBrowserWorkspace } from '@/components/BrowserWorkspace';
 import './index.less';
 import '../../styles/testing.less';
 
 export default function ChatHomePage() {
   const { api, projectPath } = useProject();
   const { state, refresh, error: workspaceError } = useWorkspace();
+  const browser = useBrowserWorkspace();
   const [params, setParams] = useSearchParams();
   const sessionId = params.get('session') || '';
   const documentId = params.get('document') || '';
@@ -74,7 +77,8 @@ export default function ChatHomePage() {
     setDocumentIds(documentId ? [documentId] : []);
   }, [api, sessionId, documentId]);
   useEffect(() => {
-    if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
+    if (viewport.current && followReply.current)
+      viewport.current.scrollTop = viewport.current.scrollHeight;
   }, [chat?.messages.length]);
   useEffect(() => setContextMenu(null), [api, sessionId, query]);
   if (!api) return <DesktopRequired />;
@@ -306,106 +310,152 @@ export default function ChatHomePage() {
           )}
           {loading && <p className="emptyState">正在读取对话…</p>}
           <div className="messageList">
-            {chat?.messages.map((message) => (
-              <article key={message.id} className={`messageItem ${message.role}`}>
-                <div className="messageRole">{message.role === 'user' ? '你' : APP_NAME}</div>
-                <div className="messageBubble">
-                  {Boolean(message.references?.length) && (
-                    <div className="messageReferences" aria-label="本轮引用的文档">
-                      {message.references?.map((reference) => (
-                        <span
-                          key={reference.id}
-                          title={
-                            reference.changed ? '原文已有变化，保留引用时的版本' : reference.name
-                          }
-                        >
-                          <Icon name="document" size={13} />
-                          {reference.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {message.role === 'assistant' ? (
-                    <TypewriterReply
-                      content={message.content}
-                      animate={Boolean(isNewReply(message)) && !skipTyping}
-                      onComplete={() =>
-                        setPendingReply((pending) =>
-                          pending?.sessionId === chat.id && !pending.messageIds.has(message.id)
-                            ? null
-                            : pending,
-                        )
-                      }
-                      onProgress={() => {
-                        if (followReply.current && viewport.current)
-                          viewport.current.scrollTop = viewport.current.scrollHeight;
-                      }}
-                    />
-                  ) : (
-                    <p className="userMessageText">{message.content}</p>
-                  )}
-                  {Boolean(message.references?.some((reference) => reference.warnings?.length)) && (
-                    <details className="messageEvidence">
-                      <summary>文档提取提示</summary>
-                      {message.references?.map((reference) =>
-                        reference.warnings?.length ? (
-                          <p key={reference.id}>
-                            {reference.name}：{reference.warnings.join('；')}
-                          </p>
-                        ) : null,
-                      )}
-                    </details>
-                  )}
-                  {Boolean(message.excerpts?.length) && (
-                    <details className="messageEvidence">
-                      <summary>本轮引用的原文片段</summary>
-                      {message.excerpts?.map((excerpt) => (
-                        <div key={excerpt.id}>
-                          <strong>{excerpt.id}</strong>
-                          <p>{excerpt.text}</p>
+            {chat && (
+              <MessageWindow
+                key={chat.id}
+                messages={chat.messages}
+                viewport={viewport}
+                followReply={followReply}
+              >
+                {(message) => (
+                  <article key={message.id} className={`messageItem ${message.role}`}>
+                    <div className="messageRole">{message.role === 'user' ? '你' : APP_NAME}</div>
+                    <div className="messageBubble">
+                      {Boolean(message.references?.length) && (
+                        <div className="messageReferences" aria-label="本轮引用的文档">
+                          {message.references?.map((reference) => (
+                            <span
+                              key={reference.id}
+                              title={
+                                reference.changed
+                                  ? '原文已有变化，保留引用时的版本'
+                                  : reference.name
+                              }
+                            >
+                              <Icon name="document" size={13} />
+                              {reference.name}
+                            </span>
+                          ))}
                         </div>
-                      ))}
-                    </details>
-                  )}
-                  {Boolean(message.commandIds?.length) && !(typing && isNewReply(message)) && (
-                    <details
-                      className="messageEvidence"
-                      onToggle={(event) => {
-                        const open = event.currentTarget.open;
-                        setCommandMessageId((current) =>
-                          open ? message.id : current === message.id ? null : current,
-                        );
-                      }}
-                    >
-                      <summary>后台执行记录（{message.commandIds?.length}）</summary>
-                      {commandMessageId === message.id && <CommandPanel ids={message.commandIds} />}
-                    </details>
-                  )}
-                  {message.role === 'assistant' &&
-                    message.status === 'complete' &&
-                    !(typing && isNewReply(message)) &&
-                    !message.refused &&
-                    Boolean(message.references?.length) && (
-                      <button
-                        className="testButton keepMessage"
-                        disabled={busy}
-                        onClick={() => {
-                          setRetaining(message);
-                          setTargetTask(
-                            state.testTasks.find(
-                              (task) =>
-                                task.id === chat.taskId &&
-                                task.sourceId === message.references?.[0]?.id,
-                            )?.id || '',
-                          );
-                        }}
-                      >
-                        保留到测试任务
-                      </button>
-                    )}
-                </div>
-              </article>
-            ))}
+                      )}
+                      {message.role === 'assistant' ? (
+                        <TypewriterReply
+                          content={message.content}
+                          animate={Boolean(isNewReply(message)) && !skipTyping}
+                          paused={Boolean(browser.activeId)}
+                          onComplete={() =>
+                            setPendingReply((pending) =>
+                              pending?.sessionId === chat.id && !pending.messageIds.has(message.id)
+                                ? null
+                                : pending,
+                            )
+                          }
+                          onProgress={() => {
+                            if (followReply.current && viewport.current)
+                              viewport.current.scrollTop = viewport.current.scrollHeight;
+                          }}
+                        />
+                      ) : (
+                        <p className="userMessageText">{message.content}</p>
+                      )}
+                      {Boolean(
+                        message.references?.some((reference) => reference.warnings?.length),
+                      ) && (
+                        <details className="messageEvidence">
+                          <summary>文档提取提示</summary>
+                          {message.references?.map((reference) =>
+                            reference.warnings?.length ? (
+                              <p key={reference.id}>
+                                {reference.name}：{reference.warnings.join('；')}
+                              </p>
+                            ) : null,
+                          )}
+                        </details>
+                      )}
+                      {message.contextUsage && (
+                        <details className="messageEvidence">
+                          <summary>本轮上下文</summary>
+                          <p>
+                            近期讨论 {message.contextUsage.recentTurns} 轮，相关早期讨论{' '}
+                            {message.contextUsage.recalledTurns} 轮；引用{' '}
+                            {message.contextUsage.documents} 份文档、
+                            {message.contextUsage.sourceExcerpts} 段原文。
+                          </p>
+                          {message.contextUsage.historyCompacted && (
+                            <p>
+                              较长内容已节选，另有 {message.contextUsage.omittedTurns}{' '}
+                              轮未纳入本轮。完整历史仍保存在此对话中。
+                            </p>
+                          )}
+                          {message.contextUsage.referenceChanged && (
+                            <p>部分历史讨论使用了不同的文档版本，不能直接作为当前资料的结论。</p>
+                          )}
+                        </details>
+                      )}
+                      {Boolean(message.excerpts?.length) && (
+                        <details className="messageEvidence messageExcerpts">
+                          <summary>本轮引用的原文片段</summary>
+                          {message.excerpts?.map((excerpt, index) => (
+                            <section className="sourceExcerpt" key={`${excerpt.id}-${index}`}>
+                              <strong className="sourceExcerptId">{excerpt.id}</strong>
+                              <div
+                                className="sourceExcerptText"
+                                role="region"
+                                aria-label={`${excerpt.id} 原文片段`}
+                                tabIndex={0}
+                              >
+                                {excerpt.text
+                                  .replace(/\r\n?/g, '\n')
+                                  .replace(/\n(?:[\t ]*\n)+/g, '\n')
+                                  .trim()}
+                              </div>
+                            </section>
+                          ))}
+                        </details>
+                      )}
+                      {Boolean(message.commandIds?.length) && !(typing && isNewReply(message)) && (
+                        <details
+                          className="messageEvidence"
+                          onToggle={(event) => {
+                            const open = event.currentTarget.open;
+                            setCommandMessageId((current) =>
+                              open ? message.id : current === message.id ? null : current,
+                            );
+                          }}
+                        >
+                          <summary>后台执行记录（{message.commandIds?.length}）</summary>
+                          {commandMessageId === message.id && (
+                            <CommandPanel ids={message.commandIds} />
+                          )}
+                        </details>
+                      )}
+                      {message.role === 'assistant' &&
+                        message.status === 'complete' &&
+                        !(typing && isNewReply(message)) &&
+                        !message.refused &&
+                        Boolean(message.references?.length) && (
+                          <button
+                            className="testButton keepMessage"
+                            disabled={busy}
+                            onClick={() => {
+                              setRetaining(message);
+                              setTargetTask(
+                                state.testTasks.find(
+                                  (task) =>
+                                    task.id === chat.taskId &&
+                                    task.sourceId === message.references?.[0]?.id,
+                                )?.id || '',
+                              );
+                            }}
+                          >
+                            保留到测试任务
+                          </button>
+                        )}
+                    </div>
+                  </article>
+                )}
+              </MessageWindow>
+            )}
             {thinking && (
               <article className="messageItem assistant">
                 <div className="messageRole">{APP_NAME}</div>

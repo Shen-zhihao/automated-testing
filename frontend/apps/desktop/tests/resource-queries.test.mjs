@@ -34,10 +34,11 @@ test('a populated v7 database upgrades once and keeps documents, secrets, histor
   store.db.exec(`DROP INDEX documents_summary; DROP INDEX test_sessions_summary;
     DROP INDEX test_runs_summary; DROP INDEX test_runs_status;
     CREATE INDEX test_runs_task ON test_runs(task_id, created_at);
-    DROP INDEX command_runs_status; PRAGMA user_version=7;`);
+    DROP INDEX command_runs_status; DROP INDEX command_runs_summary;
+    DROP INDEX test_tasks_summary; DROP INDEX test_sources_summary; PRAGMA user_version=7;`);
   store.close();
   store = new WorkspaceStore(file);
-  assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 9);
+  assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 10);
   assert.equal(store.readSettings().apiKey, 'synthetic-encrypted-value');
   assert.equal(store.getDocument(document.id).analysis.content, '保留分析');
   assert.equal(store.projects.list()[0].analyzedCount, 1);
@@ -65,10 +66,13 @@ test('summary reads use covering indexes and startup recovery uses a status look
   };
   store.listDocuments();
   new TestingStore(store).sessionSummaries();
-  new TerminalService({ store, notify() {} }, { root: os.tmpdir() });
+  new TestingStore(store).taskSummaries();
+  new TerminalService({ store, notify() {} }, { root: os.tmpdir() }).list(DEFAULT_PROJECT_ID);
   for (const [fragment, index, parameters] of [
     ['FROM documents WHERE project_id', 'documents_summary', [DEFAULT_PROJECT_ID]],
     ['FROM test_sessions WHERE', 'test_sessions_summary', [DEFAULT_PROJECT_ID]],
+    ['FROM test_tasks t INDEXED BY', 'test_tasks_summary', [DEFAULT_PROJECT_ID]],
+    ['FROM command_runs INDEXED BY', 'command_runs_summary', [DEFAULT_PROJECT_ID]],
     ["IN ('running', 'reviewing', 'pending')", 'command_runs_status', []],
   ]) {
     const sql = queries.find((value) => value.includes(fragment));
@@ -80,7 +84,63 @@ test('summary reads use covering indexes and startup recovery uses a status look
     assert.match(plan, new RegExp(index));
     assert.doesNotMatch(plan, /TEMP B-TREE/);
     if (index.endsWith('summary')) assert.match(plan, /COVERING INDEX/);
+    if (index === 'test_tasks_summary') assert.match(plan, /COVERING INDEX test_sources_summary/);
   }
+});
+
+test('v9 summary indexes backfill existing tasks and logs, follow writes and retain full history', async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'summary-upgrade-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = path.join(directory, 'fixture.sqlite');
+  let store = new WorkspaceStore(file);
+  const originalTask = {
+    id: 'task',
+    projectId: DEFAULT_PROJECT_ID,
+    name: '历史任务',
+    scope: '全部功能',
+    sourceId: 'source',
+    notes: [{ content: '保留结论' }],
+    revision: 2,
+    report: { revision: 1, cases: [{ id: 'TC-001' }, { id: 'TC-002' }] },
+    updatedAt: '2026',
+    url: '',
+  };
+  store.db
+    .prepare('INSERT INTO test_sources VALUES (?, ?)')
+    .run('source', JSON.stringify({ name: '历史需求', content: '原文'.repeat(10000) }));
+  new TestingStore(store).saveTask(originalTask);
+  const originalRun = {
+    id: 'run',
+    projectId: DEFAULT_PROJECT_ID,
+    createdAt: '2026',
+    status: 'failed',
+    command: 'pnpm test',
+    output: '完整旧日志'.repeat(10000) + '🚀'.repeat(400),
+    fingerprint: 'private',
+  };
+  store.db
+    .prepare('INSERT INTO command_runs VALUES (?, ?, ?, ?)')
+    .run(originalRun.id, originalRun.projectId, originalRun.createdAt, JSON.stringify(originalRun));
+  store.db.exec(
+    'DROP INDEX command_runs_summary; DROP INDEX test_tasks_summary; DROP INDEX test_sources_summary; PRAGMA user_version=9;',
+  );
+  store.close();
+  store = new WorkspaceStore(file);
+  t.after(() => store.close());
+  const testing = new TestingStore(store);
+  const terminal = new TerminalService({ store, notify() {} }, { root: os.tmpdir() });
+  const summary = testing.taskSummaries()[0];
+  assert.equal(summary.documentName, '历史需求');
+  assert.equal(summary.reportStale, true);
+  assert.equal(summary.caseCount, 2);
+  assert.equal(summary.noteCount, 1);
+  assert.deepEqual(testing.task('task'), originalTask);
+  assert.equal(terminal.list(DEFAULT_PROJECT_ID)[0].output, originalRun.output.slice(-500));
+  assert.equal(terminal.publicRun(DEFAULT_PROJECT_ID, 'run').output, originalRun.output);
+  terminal.save({ ...originalRun, status: 'passed', output: '更新后的真实输出' });
+  assert.equal(terminal.list(DEFAULT_PROJECT_ID)[0].output, '更新后的真实输出');
+  assert.equal(terminal.list(DEFAULT_PROJECT_ID)[0].status, 'passed');
+  assert.equal(store.db.prepare('PRAGMA quick_check').get().quick_check, 'ok');
 });
 
 test('command previews cross into JavaScript already bounded while detail retains complete Unicode output', (t) => {
@@ -102,7 +162,7 @@ test('command previews cross into JavaScript already bounded while detail retain
   let transferred = '';
   store.db.prepare = (sql) => {
     const statement = prepare(sql);
-    if (!sql.includes('FROM command_runs WHERE project_id=')) return statement;
+    if (!sql.includes('FROM command_runs INDEXED BY')) return statement;
     return {
       all: (...args) => {
         const rows = statement.all(...args);

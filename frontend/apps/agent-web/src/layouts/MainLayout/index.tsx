@@ -4,10 +4,7 @@ import Modal from '@/components/Modal';
 import Icon, { type IconName } from '@/components/Icon';
 import BrandLogo from '@/components/BrandLogo';
 import { APP_NAME, APP_TAGLINE } from '@/brand';
-import ProjectDialog from '@/components/ProjectDialog';
-import DeleteProjectDialog from '@/components/DeleteProjectDialog';
 import ProjectContextMenu, { type ProjectMenuAnchor } from './components/ProjectContextMenu';
-import DocumentLibrary from './components/DocumentLibrary';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useProject } from '@/hooks/useProject';
 import {
@@ -18,6 +15,9 @@ import {
 } from '@/components/BrowserWorkspace';
 import './index.less';
 const SkillCenter = lazy(() => import('@/components/SkillCenter'));
+const ProjectDialog = lazy(() => import('@/components/ProjectDialog'));
+const DeleteProjectDialog = lazy(() => import('@/components/DeleteProjectDialog'));
+const DocumentLibrary = lazy(() => import('./components/DocumentLibrary'));
 const sidebarPreference = 'test-agent-sidebar-collapsed';
 function readSidebarPreference() {
   try {
@@ -187,7 +187,9 @@ function MainLayoutContent() {
                           <span className="sidebarText">{item.label}</span>
                         </NavLink>
                         {item.path === 'documents' && section?.path === 'documents' && (
-                          <DocumentLibrary onSelect={() => browser.select(null)} />
+                          <Suspense fallback={null}>
+                            <DocumentLibrary onSelect={() => browser.select(null)} />
+                          </Suspense>
                         )}
                       </Fragment>
                     ))}
@@ -293,27 +295,33 @@ function MainLayoutContent() {
           }}
         />
       )}
-      {deletingProject && (
-        <DeleteProjectDialog
-          key={deletingProject.id}
-          project={deletingProject}
-          onClose={() => setDeleteProjectId(null)}
-        />
-      )}
-      <ProjectDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onSaved={(id) => {
-          browser.select(null);
-          navigate(`/projects/${id}/overview`);
-        }}
-      />
-      <ProjectDialog
-        open={editOpen}
-        project={project}
-        onClose={() => setEditOpen(false)}
-        onSaved={() => {}}
-      />
+      <Suspense fallback={null}>
+        {deletingProject && (
+          <DeleteProjectDialog
+            key={deletingProject.id}
+            project={deletingProject}
+            onClose={() => setDeleteProjectId(null)}
+          />
+        )}
+        {createOpen && (
+          <ProjectDialog
+            open={createOpen}
+            onClose={() => setCreateOpen(false)}
+            onSaved={(id) => {
+              browser.select(null);
+              navigate(`/projects/${id}/overview`);
+            }}
+          />
+        )}
+        {editOpen && (
+          <ProjectDialog
+            open={editOpen}
+            project={project}
+            onClose={() => setEditOpen(false)}
+            onSaved={() => {}}
+          />
+        )}
+      </Suspense>
       <Modal
         open={skillOpen}
         title="技能模板"

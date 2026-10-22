@@ -18,6 +18,7 @@ import { browserAddress } from './browser-policy.mjs';
 import { BrowserDataService } from '../browser-data/service.mjs';
 import { BrowserRetention } from './browser-retention.mjs';
 import { DEFAULT_PROJECT_ID } from '../projects.mjs';
+import { testGenerationView } from './generation.mjs';
 
 export class TestingService {
   constructor({
@@ -90,9 +91,11 @@ export class TestingService {
     };
   }
   getTask(id) {
-    const task = this.db.task(id);
+    const { documentCheckpoint, planCheckpoint, ...task } = this.db.task(id);
     return {
       ...task,
+      documentDraft: testGenerationView(documentCheckpoint),
+      planDraft: testGenerationView(planCheckpoint),
       source: this.sourceState(task.sourceId),
       runs: this.db.runs(id),
       browserOpen: Boolean(this.browsers.get(id)?.alive()),
@@ -108,7 +111,12 @@ export class TestingService {
     const controller = new AbortController();
     this.controllers.set(key, controller);
     const progress = (message) => {
-      this.jobs.set(key, { status: 'running', kind, message });
+      this.jobs.set(key, {
+        status: 'running',
+        kind,
+        message,
+        revision: this.jobs.get(key)?.revision ?? 0,
+      });
       this.notify();
     };
     progress('正在准备…');
@@ -119,9 +127,14 @@ export class TestingService {
       return value;
     } catch (error) {
       const browser = key.startsWith('task:') ? this.browsers.get(key.slice(5)) : null;
-      const message = controller.signal.aborted
+      let message = controller.signal.aborted
         ? '操作已取消，已有结果保留。'
         : redact(error.message || '操作失败', browser?.secrets).slice(0, 1000);
+      if (key.startsWith('task:') && ['document', 'plan'].includes(kind)) {
+        const task = this.db.task(key.slice(5));
+        if (testGenerationView(task[kind === 'document' ? 'documentCheckpoint' : 'planCheckpoint']))
+          message += ' 已保存生成进度，保持任务与模型不变可继续生成。';
+      }
       this.jobs.set(key, {
         status: controller.signal.aborted ? 'cancelled' : 'error',
         kind,
@@ -136,6 +149,15 @@ export class TestingService {
   }
   cancel(key) {
     this.controllers.get(key)?.abort();
+  }
+  saveGeneration(task, field, checkpoint, secrets = []) {
+    // 页面中可能包含已知敏感值，草稿与最终计划使用相同的脱敏边界。
+    task[field] = redactObject(structuredClone(checkpoint), secrets);
+    this.db.saveTask(task);
+    const key = `task:${task.id}`;
+    const job = this.jobs.get(key);
+    if (job) this.jobs.set(key, { ...job, revision: (job.revision ?? 0) + 1 });
+    this.notify();
   }
   close() {
     this.retention.dispose();
@@ -338,17 +360,18 @@ export class TestingService {
       try {
         if (session.taskId) {
           const task = this.db.task(session.taskId);
-          session.taskContext = `关联测试任务：${task.name}\n范围：${task.scope}\n已保留结论（相关上下文）：\n${task.notes
-            .map((note) => note.content)
-            .join('\n')
-            .slice(
-              -12000,
-            )}\n当前用例：\n${JSON.stringify(task.report?.cases || []).slice(0, 12000)}\n执行概况：${JSON.stringify(
-            this.db.recentRunSummaries(task.id),
-          )}`;
+          session.taskContext = {
+            name: task.name,
+            scope: task.scope,
+            sourceId: task.sourceId,
+            notes: task.notes,
+            cases: task.report?.cases ?? [],
+            reportStale: Boolean(task.report && task.report.revision !== task.revision),
+            recentRuns: this.db.recentRunSummaries(task.id),
+          };
         }
         if (this.terminal)
-          session.commandContext = JSON.stringify({
+          session.commandContext = {
             ...this.terminal.info(session.projectId),
             recentCommands: this.terminal
               .list(session.projectId)
@@ -359,9 +382,9 @@ export class TestingService {
                 status: run.status,
                 exitCode: run.exitCode,
                 output: redact(run.output, [config.apiKey]),
-                error: run.error,
+                error: redact(run.error, [config.apiKey]),
               })),
-          });
+          };
         let answer = await answerChat(source, session, config, {
           signal,
           fetchImpl: this.fetchImpl,
@@ -395,8 +418,8 @@ export class TestingService {
                 command: run.command,
                 status: run.status,
                 exitCode: run.exitCode,
-                output: redact(run.output, [config.apiKey]).slice(-12000),
-                truncated: run.truncated || run.output.length > 12000,
+                output: redact(run.output, [config.apiKey]),
+                truncated: run.truncated,
                 error: redact(run.error, [config.apiKey]),
               })),
             },
@@ -413,6 +436,7 @@ export class TestingService {
           refused: Boolean(answer.refused),
           content: answer.content,
           excerpts: answer.excerpts,
+          contextUsage: answer.contextUsage,
           sourceIds,
           createdAt: now(),
           status: 'complete',
@@ -514,6 +538,8 @@ export class TestingService {
       });
       task.revision++;
       task.plan = null;
+      delete task.documentCheckpoint;
+      delete task.planCheckpoint;
       task.updatedAt = now();
       this.db.saveTask(task);
     }
@@ -527,7 +553,11 @@ export class TestingService {
     const name = textField(input.name, '任务名称', 160),
       scope = textField(input.scope, '测试范围', 4000);
     const url = input.url ? testUrl(textField(input.url, '测试网址', 2000)) : '';
-    if (task.name !== name || task.scope !== scope) task.revision++;
+    if (task.name !== name || task.scope !== scope) {
+      task.revision++;
+      delete task.documentCheckpoint;
+    }
+    delete task.planCheckpoint;
     if (task.url !== url) {
       this.retention.forget(id);
       this.retiredBrowsers.delete(id);
@@ -548,7 +578,12 @@ export class TestingService {
         source,
         task,
         config,
-        { signal, fetchImpl: this.fetchImpl },
+        {
+          signal,
+          fetchImpl: this.fetchImpl,
+          checkpoint: task.documentCheckpoint,
+          onCheckpoint: (value) => this.saveGeneration(task, 'documentCheckpoint', value),
+        },
         progress,
       );
       signal.throwIfAborted();
@@ -563,6 +598,8 @@ export class TestingService {
       if (task.report) task.reportHistory.push(task.report);
       task.report = report;
       task.plan = null;
+      delete task.documentCheckpoint;
+      delete task.planCheckpoint;
       task.updatedAt = now();
       this.db.saveTask(task);
       return this.getTask(id);
@@ -615,6 +652,10 @@ export class TestingService {
       const plan = await planBrowserTests(browser, cases, config, {
         signal,
         fetchImpl: this.fetchImpl,
+        checkpoint: task.planCheckpoint,
+        onProgress: progress,
+        onCheckpoint: (value) =>
+          this.saveGeneration(task, 'planCheckpoint', value, browser.secrets),
       });
       signal.throwIfAborted();
       const safePlan = redactObject(plan, browser.secrets);
@@ -625,6 +666,7 @@ export class TestingService {
         revision: task.revision,
         createdAt: now(),
       };
+      delete task.planCheckpoint;
       task.updatedAt = now();
       this.db.saveTask(task);
       return this.getTask(id);

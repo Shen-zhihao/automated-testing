@@ -61,7 +61,8 @@ export class TestingStore {
       COALESCE(json_extract(t.data, '$.report.revision') != json_extract(t.data, '$.revision'), 0) AS reportStale,
       COALESCE(json_array_length(t.data, '$.report.cases'), 0) AS caseCount,
       (SELECT json_extract(r.data, '$.status') FROM test_runs r WHERE r.task_id=t.id ORDER BY r.created_at DESC, r.id LIMIT 1) AS lastRunStatus
-      FROM test_tasks t JOIN test_sources s ON s.id = json_extract(t.data, '$.sourceId')
+      FROM test_tasks t INDEXED BY test_tasks_summary
+      JOIN test_sources s INDEXED BY test_sources_summary ON s.id = json_extract(t.data, '$.sourceId')
       WHERE json_extract(t.data, '$.projectId') = ?
       ORDER BY t.updated_at DESC, t.id`,
       )

@@ -1,18 +1,27 @@
 import { AGENT_RULES } from './agent-policy.mjs';
 import { readJsonResponse } from './http.mjs';
+import { messageCharacters } from './context.mjs';
+
+export function modelMessages(messages) {
+  return messages[0]?.role === 'system'
+    ? [{ ...messages[0], content: AGENT_RULES + '\n' + messages[0].content }, ...messages.slice(1)]
+    : [{ role: 'system', content: AGENT_RULES }, ...messages];
+}
 
 export async function completePart(
   config,
   messages,
-  { signal, fetchImpl = fetch, maxTokens = config.maxTokens, reasoningEffort } = {},
+  {
+    signal,
+    fetchImpl = fetch,
+    maxTokens = config.maxTokens,
+    reasoningEffort,
+    inputCharacterLimit,
+  } = {},
 ) {
-  messages =
-    messages[0]?.role === 'system'
-      ? [
-          { ...messages[0], content: AGENT_RULES + '\n' + messages[0].content },
-          ...messages.slice(1),
-        ]
-      : [{ role: 'system', content: AGENT_RULES }, ...messages];
+  messages = modelMessages(messages);
+  if (inputCharacterLimit && messageCharacters(messages) > inputCharacterLimit)
+    throw new Error('本轮上下文超过本机请求预算，请缩小问题或引用资料范围后重试；历史记录保留。');
   const timeout = AbortSignal.timeout(config.timeoutSeconds * 1000);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   const responses = config.format === 'responses';

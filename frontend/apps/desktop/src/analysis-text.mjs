@@ -22,10 +22,17 @@ export function splitText(text, size = 12000) {
 }
 
 // 只回传当前任务和正文末尾，不把不断增长的完整报告塞回上下文。
-export function createAnalysisWriter(
+export function createTextWriter(
   config,
   state,
-  { signal, fetchImpl, onProgress, onCheckpoint },
+  {
+    signal,
+    fetchImpl,
+    onProgress = () => {},
+    onCheckpoint,
+    system = REQUIREMENTS_SYSTEM,
+    correction = '编号从原始任务指定值开始，所有给定关联均需覆盖，不编造新需求，不写其他功能。',
+  },
 ) {
   const persist = () => onCheckpoint?.(state);
   return async (key, label, prompt, validate = () => {}) => {
@@ -49,11 +56,11 @@ export function createAnalysisWriter(
     for (let round = 0; round < 12; round++) {
       signal?.throwIfAborted();
       const messages = [
-        { role: 'system', content: REQUIREMENTS_SYSTEM },
+        { role: 'system', content: system },
         { role: 'user', content: prompt },
       ];
       if (step.validationError)
-        messages[1].content += `\n<本机校验反馈>\n上次输出未通过校验：${step.validationError}\n请严格依据原始任务重新生成当前步骤的完整内容，修正上述问题；编号从原始任务指定值开始，所有给定关联均需覆盖，不编造新需求，不写其他功能。此前未通过的正文已作废。\n</本机校验反馈>`;
+        messages[1].content += `\n<本机校验反馈>\n上次输出未通过校验：${step.validationError}\n请严格依据原始任务重新生成当前步骤的完整内容，修正上述问题；${correction}此前未通过的正文已作废。\n</本机校验反馈>`;
       const anchor = step.text.slice(-120);
       if (step.text) {
         onProgress(`${label} · 正在自动续写`);
@@ -70,7 +77,7 @@ export function createAnalysisWriter(
         AGENT_RULES.length + messages.reduce((size, message) => size + message.content.length, 0) >
         48000
       )
-        throw new Error('当前功能的分析材料过长，请拆分需求后重试；已完成步骤保留。');
+        throw new Error('当前步骤的材料过长，请拆分任务后重试；已完成步骤保留。');
       const result = await completePart(config, messages, {
         signal,
         fetchImpl,
@@ -98,7 +105,7 @@ export function createAnalysisWriter(
         continue;
       }
       if (step.text.length + addition.length > 160000)
-        throw new Error('单个功能输出过长，请拆分需求；已完成步骤保留。');
+        throw new Error('单个步骤输出过长，请拆分任务；已完成步骤保留。');
       step.text += addition;
       if (!result.truncated) {
         try {
@@ -122,3 +129,5 @@ export function createAnalysisWriter(
     );
   };
 }
+
+export const createAnalysisWriter = createTextWriter;

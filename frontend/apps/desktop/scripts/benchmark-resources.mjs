@@ -16,7 +16,13 @@ const store = new WorkspaceStore(':memory:');
 const testing = new TestingStore(store);
 const projectId = store.projects.list()[0].id;
 const timestamp = '2026-10-21T00:00:00.000Z';
-const dataset = { documents: 250, documentCharacters: 40000, sessions: 120, commands: 100 };
+const dataset = {
+  documents: 250,
+  documentCharacters: 40000,
+  sessions: 120,
+  tasks: 100,
+  commands: 100,
+};
 const documentText = '需求正文 ABC '.repeat(4000).slice(0, dataset.documentCharacters);
 dataset.documentCharacters = documentText.length;
 store.db.exec('BEGIN');
@@ -48,6 +54,34 @@ try {
       updatedAt: timestamp,
       messages: [{ role: 'assistant', content: '回复'.repeat(16000) }],
     });
+  store.db.prepare('INSERT INTO test_sources VALUES (?, ?)').run(
+    'synthetic-source',
+    JSON.stringify({
+      id: 'synthetic-source',
+      name: '合成需求快照',
+      content: documentText.repeat(3),
+      analysis: documentText.repeat(3),
+    }),
+  );
+  for (let i = 0; i < dataset.tasks; i++)
+    testing.saveTask({
+      id: `task-${i}`,
+      projectId,
+      name: `测试任务 ${i}`,
+      scope: '全部功能',
+      sourceId: 'synthetic-source',
+      notes: [],
+      revision: 1,
+      report: {
+        revision: 1,
+        cases: Array.from({ length: 100 }, (_, index) => ({
+          id: `TC-${index}`,
+          steps: [documentText.slice(0, 1000)],
+        })),
+      },
+      updatedAt: timestamp,
+      url: '',
+    });
   const insertCommand = store.db.prepare('INSERT INTO command_runs VALUES (?, ?, ?, ?)');
   for (let i = 0; i < dataset.commands; i++) {
     const run = {
@@ -75,7 +109,11 @@ const overview = new WorkspaceService({
   settings: { public: () => ({}) },
   feishu: { status: () => ({}) },
   testing: {
-    snapshot: (id) => ({ testSessions: testing.sessionSummaries(id), testTasks: [], testJobs: {} }),
+    snapshot: (id) => ({
+      testSessions: testing.sessionSummaries(id),
+      testTasks: testing.taskSummaries(id),
+      testJobs: {},
+    }),
   },
 });
 function measure(operation) {
@@ -139,6 +177,7 @@ try {
     operations: {
       documents: measure(() => store.listDocuments(projectId)),
       sessions: measure(() => testing.sessionSummaries(projectId)),
+      tasks: measure(() => testing.taskSummaries(projectId)),
       commands: measure(() => terminal.list(projectId)),
       recoverCommands: measure(() => new TerminalService(workspace, { root: os.tmpdir() })),
       globalSnapshot: measure(() => overview.snapshot(null)),

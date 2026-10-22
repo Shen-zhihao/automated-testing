@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import MarkdownContent from '@/components/MarkdownContent';
+import { animationSettings, replyPrefix } from './frames.mjs';
 import './index.less';
 
 export default function TypewriterReply({
   content,
   animate,
+  paused = false,
   onComplete,
   onProgress,
 }: {
   content: string;
   animate: boolean;
+  paused?: boolean;
   onComplete: () => void;
   onProgress: () => void;
 }) {
@@ -21,37 +24,45 @@ export default function TypewriterReply({
       setVisible(content);
       return;
     }
-    if (!content || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const finish = () => {
       setVisible(content);
       callbacks.current.onComplete();
+    };
+    if (
+      !content ||
+      paused ||
+      document.hidden ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      finish();
       return;
     }
-    const characters = Array.from(content);
-    const duration = Math.min(16000, Math.max(600, characters.length * 14));
+    const { duration, interval } = animationSettings(content.length);
     const start = performance.now();
-    let frame = 0;
-    let previous = 0;
+    let timer = 0;
     setVisible('');
-    const reveal = (time: number) => {
-      const elapsed = time - start;
+    const reveal = () => {
+      const elapsed = performance.now() - start;
       if (elapsed >= duration) {
-        setVisible(content);
-        callbacks.current.onComplete();
+        finish();
         return;
       }
-      if (time - previous >= 45) {
-        previous = time;
-        setVisible(
-          characters
-            .slice(0, Math.max(1, Math.floor((characters.length * elapsed) / duration)))
-            .join(''),
-        );
-      }
-      frame = requestAnimationFrame(reveal);
+      setVisible(replyPrefix(content, elapsed / duration));
+      timer = window.setTimeout(reveal, interval);
     };
-    frame = requestAnimationFrame(reveal);
-    return () => cancelAnimationFrame(frame);
-  }, [content, animate]);
+    const visibility = () => {
+      if (document.hidden) {
+        clearTimeout(timer);
+        finish();
+      }
+    };
+    reveal();
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  }, [content, animate, paused]);
   useEffect(() => callbacks.current.onProgress(), [visible]);
   return (
     <div className="typewriterReply" aria-busy={animate && visible !== content}>

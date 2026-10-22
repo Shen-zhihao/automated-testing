@@ -14,6 +14,21 @@ const page = (extra = {}) => ({
   ...extra,
 });
 
+test('default retention bounds closed idle webpages to two pages for two minutes', (t) => {
+  const browsers = new Map(['first', 'second', 'third'].map((id) => [id, page()]));
+  const first = browsers.get('first');
+  const retention = new BrowserRetention(browsers);
+  t.after(() => retention.dispose());
+  retention.hide('first', 0);
+  retention.hide('second', 1);
+  retention.hide('third', 2);
+  assert.equal(first.closed, true);
+  assert.equal(browsers.size, 2);
+  retention.reap(120002);
+  assert.equal(browsers.size, 0);
+  assert.equal(retention.timer, null);
+});
+
 test('idle hidden pages are retired after the deadline, but reopened pages keep their live state', (t) => {
   const first = page(),
     reopened = page();

@@ -78,4 +78,49 @@ test('closed execution histories omit evidence DOM; running records show it, and
   assert.match(formatted, /<li>确认排期<\/li>/);
   assert.match(formatted, /<pre><code class="language-js">/);
   assert.doesNotMatch(formatted, /&quot;answer&quot;|\\n/);
+  const { default: Feedback } = await server.ssrLoadModule(
+    '/src/pages/TaskDetail/components/TaskFeedback/index.tsx',
+  );
+  const message = '已保存生成进度，可以继续生成';
+  const feedback = (error, job) =>
+    renderToStaticMarkup(
+      React.createElement(Feedback, { error, notice: '', job, onCancel: () => {} }),
+    );
+  const duplicated = feedback(message, { status: 'error', kind: 'document', message });
+  assert.equal(duplicated.split(message).length - 1, 1);
+  assert.equal(duplicated.match(/role="alert"/g).length, 1);
+  assert.match(
+    feedback('设置保存失败', { status: 'error', kind: 'document', message }),
+    /设置保存失败/,
+  );
+  assert.match(
+    feedback('', { status: 'running', kind: 'plan', message: '正在自动续写' }),
+    /停止当前操作/,
+  );
+  assert.doesNotMatch(duplicated, /停止当前操作/);
+  const { default: MessageWindow } = await server.ssrLoadModule(
+    '/src/pages/ChatHome/components/MessageWindow/index.tsx',
+  );
+  const messages = Array.from({ length: 400 }, (_, index) => ({
+    id: `message-${index}`,
+    content: `正文-${index}`,
+  }));
+  const windowed = renderToStaticMarkup(
+    React.createElement(MessageWindow, {
+      messages,
+      viewport: { current: null },
+      followReply: { current: true },
+      children: (message) =>
+        React.createElement(
+          'article',
+          { key: message.id, 'data-message': message.id },
+          message.content,
+        ),
+    }),
+  );
+  assert.equal(windowed.match(/<article/g).length, 40);
+  assert.match(windowed, /还有 360 条/);
+  assert.match(windowed, /data-message="message-399"/);
+  assert.doesNotMatch(windowed, /data-message="message-0"/);
+  assert.equal(messages.length, 400);
 });

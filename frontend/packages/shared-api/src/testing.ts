@@ -13,6 +13,7 @@ export interface RequirementReference {
   warnings?: string[];
 }
 export interface WorkChatMessage {
+  contextUsage?: ChatContextUsage;
   commandIds?: string[];
   refused?: boolean;
   id: string;
@@ -22,6 +23,15 @@ export interface WorkChatMessage {
   status: 'complete' | 'error';
   excerpts?: { id: string; text: string }[];
   references?: RequirementReference[];
+}
+export interface ChatContextUsage {
+  recentTurns: number;
+  recalledTurns: number;
+  omittedTurns: number;
+  documents: number;
+  sourceExcerpts: number;
+  historyCompacted: boolean;
+  referenceChanged: boolean;
 }
 export interface WorkChatSummary {
   projectId: string;
@@ -154,11 +164,19 @@ export interface WorkTestTask {
   report: DetailedTestDocument | null;
   reportHistory: DetailedTestDocument[];
   reportStale: boolean;
+  documentDraft?: TestGenerationProgress | null;
+  planDraft?: TestGenerationProgress | null;
   plan: BrowserTestPlan | null;
   runs: BrowserRun[];
   browserOpen: boolean;
 }
+export interface TestGenerationProgress {
+  completed: number;
+  total: number;
+  caseIds?: string[];
+}
 export interface TestingJob {
+  revision?: number;
   status: 'running' | 'complete' | 'cancelled' | 'error';
   kind: 'chat' | 'document' | 'browser' | 'plan' | 'run';
   message: string;

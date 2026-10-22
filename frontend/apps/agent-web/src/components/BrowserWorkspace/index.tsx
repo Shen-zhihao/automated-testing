@@ -1,5 +1,7 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -9,10 +11,10 @@ import {
   type ReactNode,
 } from 'react';
 import type { BrowserTabInfo } from '@project/shared-api';
-import BuiltinBrowser from '@/components/BuiltinBrowser';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useProjectId } from '@/hooks/useProject';
 import './index.less';
+const BuiltinBrowser = lazy(() => import('@/components/BuiltinBrowser'));
 
 type BrowserWorkspace = {
   tabs: BrowserTabInfo[];
@@ -213,12 +215,20 @@ export function BrowserPanel() {
   const running = state?.testJobs[`task:${tab.id}`]?.status === 'running';
   return (
     <section className="workspaceBrowserPanel" aria-label="当前网页">
-      <BuiltinBrowser
-        key={tab.id}
-        info={tab}
-        disabled={running}
-        onOpenUrl={(url) => open({ url })}
-      />
+      <Suspense
+        fallback={
+          <p className="workspaceLoading" role="status">
+            正在打开网页工具…
+          </p>
+        }
+      >
+        <BuiltinBrowser
+          key={tab.id}
+          info={tab}
+          disabled={running}
+          onOpenUrl={(url) => open({ url })}
+        />
+      </Suspense>
     </section>
   );
 }
