@@ -126,6 +126,7 @@ export class WorkspaceService {
   async testModel() {
     const config = await this.settings.modelConfig();
     await complete(config, [{ role: 'user', content: '连接测试，请只回复 OK。' }], {
+      agentId: 'connection',
       fetchImpl: this.fetchImpl,
       maxTokens: Math.min(config.maxTokens, 2048),
       reasoningEffort: 'none',

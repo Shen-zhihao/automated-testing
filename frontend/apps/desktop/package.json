@@ -11,6 +11,7 @@
     "start": "node scripts/run.mjs",
     "typecheck": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs",
+    "test:live": "node scripts/test-live-model.mjs",
     "check:package": "node scripts/check-package.mjs",
     "brand:icons": "node scripts/export-brand-icons.mjs",
     "benchmark:resources": "node --expose-gc scripts/benchmark-resources.mjs",
@@ -114,12 +115,14 @@
     "node": ">=22.16.0"
   },
   "dependencies": {
+    "@mastra/core": "1.79.0",
     "adm-zip": "0.6.1",
     "exceljs": "4.4.0",
     "fast-xml-parser": "5.11.2",
     "html-to-text": "10.0.1",
     "htmlparser2": "10.1.0",
     "mammoth": "1.13.0",
-    "pdfjs-dist": "6.4.299"
+    "pdfjs-dist": "6.4.299",
+    "zod": "4.4.3"
   }
 }

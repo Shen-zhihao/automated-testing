@@ -18,20 +18,6 @@
 
 完整规则见 [docs/规范/2026-09-03-前端项目开发规则/2026-09-03-前端项目开发规则.md](docs/规范/2026-09-03-前端项目开发规则/2026-09-03-前端项目开发规则.md)。
 
-## 后端 Python 开发规则
-
-- 后端统一采用 `backend/packages/<package-name>/src/<python_package>` 的 `src` 目录结构；可导入的 Python 代码只放在 `src/` 下，不直接散落在包根目录；
-- 每个后端包的根目录只保留 `pyproject.toml`、`README.md`、`main.py`、`tests/`、`data/` 等工程文件；业务实现放入对应 Python package；
-- `main.py` 只作为服务启动入口，负责创建应用或启动进程；不要把业务逻辑、数据库访问、路由实现堆在 `main.py` 中；
-- 每个可导入目录都应包含 `__init__.py`，禁止依赖临时 `sys.path` 修改、脚本相对路径技巧或随意设置 `PYTHONPATH` 解决导入问题；
-- 跨包、跨模块调用优先使用基于包名的绝对导入；同一包内部的近距离引用可使用相对导入，但保持一致，不要混用到难以维护；
-- API 层保持薄：路由只负责参数校验、依赖注入、响应封装；配置、Schema、Repository、Client、Adapter、Graph、Node、Skill 等内容按职责拆分到独立目录；
-- 公共能力统一沉淀到 `backend/packages/common-lib`，包括共享 Schema、数据库模型、配置、工具函数、适配器与常量；禁止在各服务内重复复制同类实现；
-- 数据库模型、迁移、配置与接口契约分层放置：模型放 `db/models`，迁移放 `db/migrations`，Pydantic Schema 放 `schemas`，配置放 `config`；
-- 运行时数据、检查点、缓存文件放在 `data/` 等非源码目录，不放进 `src/`；日志、构建产物、缓存文件不得混入可导入包；
-- 新增后端测试时，优先在各包根目录下创建 `tests/`，并按 `src/` 的模块结构镜像组织；不要把测试文件混放进业务源码目录；
-- 当前未加载后端 Skill。以后新增内置 Skill 时放入 `backend/skill-packages/<name>/SKILL.md`；修改内容必须同步提升 frontmatter 中的 `metadata.version`。
-
 ## 本地桌面运行规则
 
 - 产品仅面向 Windows 和 macOS，桌面外壳放在 `frontend/apps/desktop`，React UI 继续放在 `frontend/apps/agent-web`。
@@ -39,13 +25,11 @@
 - 持久化采用本地 SQLite；文档、格式预览、分析结果和配置默认落入 `app.getPath('userData')/storage/test-agent.sqlite`，可在设置中选择其他本机目录；目录指针保存在固定 `userData/storage-location.json`，不移动系统凭据存储身份。禁止写入安装目录或源码目录。
 - 更换保存目录必须使用 SQLite 备份接口覆盖 WAL 数据、验证新库、原子更新目录指针后切换连接；旧目录保留副本，不覆盖目标已有数据库。迁移与导入、分析、设置保存互斥；配置目录失效时不得悄悄创建空库替代用户数据。
 - 渲染进程不直接访问文件系统、数据库或系统命令；通过受限的 preload / IPC 接口交给主进程或本地执行模块。新增 IPC 必须校验主框架来源。
-- Python 当前只保留可选本机骨架，启动绑定 `127.0.0.1`；桌面原型不依赖它，也不自动拉起后台 HTTP 服务。
+- 本地业务与 Agent 编排放在 `frontend/apps/desktop/src`，由 Electron 主进程运行，不单独启动后台 HTTP 服务。
 - 不把“无需联网数据库”等同于“永远不允许联网”：以后测试目标访问、模型调用是否联网，应由用户配置和具体功能决定。
 
 ## 环境配置规则
 
-- Python 环境变量在 `backend/packages/common-lib/src/common_lib/config/settings.py` 的 `AppSettings` 中声明，当前只有 `APP_ENV`、`LOG_LEVEL`、`CORS_ORIGINS`。
-- 新增、修改或删除 Python 变量时同步 `backend/.env.example`、本机启动入口和使用说明。模板与代码默认值保持一致。
 - 桌面模式由启动脚本的 `--dev` 参数控制，开发服务器只监听 `127.0.0.1:5180`。模型地址由用户在设置中配置，不引入远程数据库连接字符串。
 - API Key 通过 Electron safeStorage 加密后保存，配置读取接口只返回是否存在密钥，不回显密钥；更换模型服务地址时清除旧密钥，避免发送给新的服务。
 - 飞书采用自建应用身份（tenant_access_token）与官方只读 API，不依赖 Codex、MCP 连接器或额外 Node/Python 程序。设置仅包含 App ID、App Secret 和测试连接，不使用用户登录或回调。禁止从其他应用读取或复制凭据。
@@ -59,4 +43,4 @@
 - 格式预览与分析文字分开存储。外部 HTML 须净化并在无脚本、无网络的沙盒中显示；飞书通过分页块接口还原标题、列表和表格。旧文档重新提取时，文字变化才使旧分析失效，失败保留原数据。
 - 按用户明确的范围逐步接入模型、执行器和本地持久化，避免提前扩充业务。
 - 桌面运行使用 `cd frontend && pnpm dev:desktop` 或 `pnpm desktop`。打包命令分别为 `pnpm package:mac` 和 `pnpm package:win`，仅在明确要求交付安装包时执行。
-- 前端检查使用 `make frontend-check` 与 `make frontend-build`；后端使用 `make backend-check`。Windows 可直接执行使用说明中的 pnpm / Poetry 命令，不依赖 Make。
+- 桌面与 UI 检查使用 `make frontend-check` 与 `make frontend-build`，`make check` 等同于 `make frontend-check`。Windows 可直接执行使用说明中的 pnpm 命令，不依赖 Make。

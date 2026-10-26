@@ -24,6 +24,7 @@ export function createTestWriter(kind, context, config, options, system) {
     write: createTextWriter(config, state, {
       ...options,
       system,
+      agentId: kind === 'plan' ? 'planner' : 'testing',
       correction: '仅输出当前任务要求的结构，保留全部来源和关联，不编造新需求或测试结果。',
     }),
   };

@@ -225,6 +225,111 @@ test('invalid test output repairs only the failing group', async () => {
   assert.equal(checkpoint.steps['output:1'].complete, true);
 });
 
+test('later document groups see prior coverage without dropping distinct test layers', async () => {
+  const logic = documentPart('逻辑层增加').cases[0];
+  const interfaceCase = {
+    ...logic,
+    title: '界面层增加',
+    expected: ['页面显示计数1'],
+    automation: '界面单独验收',
+  };
+  const requestedGroups = [];
+  const result = await generateTestDocument(
+    { ...source, content: '初值为0，上限3。', analysis: '重复需求\n'.repeat(1300) },
+    task,
+    config,
+    {
+      fetchImpl: async (_, request) => {
+        const messages = messagesOf(request);
+        if (isReview(messages)) return modelAnswer('{"decision":"allow"}');
+        const group = outputGroup(messages);
+        requestedGroups.push(group);
+        if (group === 1)
+          return modelAnswer(JSON.stringify({ ...documentPart(), cases: [logic, interfaceCase] }));
+        assert.match(messages[1].content, /<已生成用例摘要/);
+        assert.match(messages[1].content, /TC-001 逻辑层增加/);
+        assert.match(messages[1].content, /TC-002 界面层增加/);
+        assert.match(messages[1].content, /页面显示计数1/);
+        assert.match(messages[1].content, /不同边界或失败条件需要分别保留/);
+        assert.match(messages[1].content, /<共享需求原文（完整）>\n\[P-001\]\n初值为0，上限3。/);
+        return modelAnswer(JSON.stringify(documentPart('失败保持原值')));
+      },
+    },
+    () => {},
+  );
+  assert.deepEqual(requestedGroups, [1, 2]);
+  assert.deepEqual(
+    result.cases.map((item) => item.title),
+    ['逻辑层增加', '界面层增加', '失败保持原值'],
+  );
+});
+
+test('coverage for 100 cases leaves room for the longest task scope and continuation', async () => {
+  const cases = Array.from({ length: 100 }, (_, index) => ({
+    ...documentPart().cases[0],
+    title: `场景${index + 1}：${'长标题'.repeat(60)}`,
+    requirement: '原文依据'.repeat(50),
+    preconditions: ['前置条件'.repeat(30)],
+    expected: ['预期结果'.repeat(60)],
+  }));
+  const finalPart = JSON.stringify({ ...documentPart(), scope: '范围'.repeat(2000), cases: [] });
+  const cut = 3800;
+  let continuations = 0;
+  const result = await generateTestDocument(
+    { ...source, content: '原文需求'.repeat(1500), analysis: '分析依据'.repeat(1450) },
+    { ...task, scope: '范围'.repeat(2000) },
+    config,
+    {
+      fetchImpl: async (_, request) => {
+        const messages = messagesOf(request);
+        assert.ok(messages.reduce((sum, message) => sum + message.content.length, 0) <= 48000);
+        if (isReview(messages)) return modelAnswer('{"decision":"allow"}');
+        if (outputGroup(messages) === 1)
+          return modelAnswer(JSON.stringify({ ...documentPart(), cases }));
+        assert.match(messages[1].content, /TC-001 场景1：/);
+        assert.match(messages[1].content, /TC-100 场景100：/);
+        if (messages.length > 2) {
+          continuations++;
+          return modelAnswer(anchorOf(messages) + finalPart.slice(cut));
+        }
+        return modelAnswer(finalPart.slice(0, cut), 'length');
+      },
+    },
+    () => {},
+  );
+  assert.equal(continuations, 2);
+  assert.equal(result.cases.length, 100);
+});
+
+test('duplicate titles across groups are repaired without replaying completed cases', async () => {
+  const calls = new Map();
+  const result = await generateTestDocument(
+    { ...source, content: '重复需求\n'.repeat(1300) },
+    task,
+    config,
+    {
+      fetchImpl: async (_, request) => {
+        const messages = messagesOf(request);
+        if (isReview(messages)) return modelAnswer('{"decision":"allow"}');
+        const group = outputGroup(messages);
+        calls.set(group, (calls.get(group) ?? 0) + 1);
+        if (group === 1) return modelAnswer(JSON.stringify(documentPart('逻辑：增加计数')));
+        if (calls.get(group) === 1)
+          return modelAnswer(JSON.stringify(documentPart('逻辑: 增加计数')));
+        assert.match(messages[1].content, /已生成，不能重复/);
+        return modelAnswer(JSON.stringify(documentPart('界面：增加计数')));
+      },
+    },
+    () => {},
+  );
+  assert.equal(calls.get(1), 1);
+  assert.equal(calls.get(2), 2);
+  assert.deepEqual(
+    result.cases.map((item) => item.title),
+    ['逻辑：增加计数', '界面：增加计数'],
+  );
+});
+
 test('cancelling after a truncated response retains the prefix and rejects late successful output', async () => {
   const controller = new AbortController();
   const full = JSON.stringify(documentPart());

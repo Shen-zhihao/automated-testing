@@ -19,6 +19,7 @@ import { BrowserDataService } from '../browser-data/service.mjs';
 import { BrowserRetention } from './browser-retention.mjs';
 import { DEFAULT_PROJECT_ID } from '../projects.mjs';
 import { testGenerationView } from './generation.mjs';
+import { runWorkflow, runTool } from '../mastra/runtime.mjs';
 
 export class TestingService {
   constructor({
@@ -385,49 +386,62 @@ export class TestingService {
                 error: redact(run.error, [config.apiKey]),
               })),
           };
-        let answer = await answerChat(source, session, config, {
-          signal,
-          fetchImpl: this.fetchImpl,
-        });
-        signal.throwIfAborted();
-        for (const proposal of answer.commands || []) {
-          signal.throwIfAborted();
-          if (this.terminal)
-            commandIds.push(
-              (
-                await this.terminal.propose(
-                  session.projectId,
-                  { ...proposal, sessionId: id },
+        const answer = await runWorkflow(
+          'chat-turn',
+          {
+            answer: () =>
+              answerChat(source, session, config, {
+                signal,
+                fetchImpl: this.fetchImpl,
+              }),
+            'execute-commands': async (answer) => {
+              if (!this.terminal || !answer.commands?.length) return { answer, results: [] };
+              for (const proposal of answer.commands) {
+                await runTool(
+                  'project-command',
+                  proposal,
+                  async (input) => {
+                    const run = await this.terminal.propose(
+                      session.projectId,
+                      { ...input, sessionId: id },
+                      { signal },
+                    );
+                    // 先记录已提交的命令，取消发生在工具返回时也能停止它。
+                    commandIds.push(run.id);
+                    return { id: run.id };
+                  },
                   { signal },
-                )
-              ).id,
-            );
-        }
-        if (commandIds.length) {
-          progress('正在后台执行工程命令…');
-          const results = await Promise.all(
-            commandIds.map((runId) => this.terminal.wait(session.projectId, runId, signal)),
-          );
-          signal.throwIfAborted();
-          progress('正在整理命令执行结果…');
-          answer = await answerChat(
-            source,
-            {
-              ...session,
-              commandResults: results.map((run) => ({
-                command: run.command,
-                status: run.status,
-                exitCode: run.exitCode,
-                output: redact(run.output, [config.apiKey]),
-                truncated: run.truncated,
-                error: redact(run.error, [config.apiKey]),
-              })),
+                );
+              }
+              progress('正在后台执行工程命令…');
+              const results = await Promise.all(
+                commandIds.map((runId) => this.terminal.wait(session.projectId, runId, signal)),
+              );
+              return { answer, results };
             },
-            config,
-            { signal, fetchImpl: this.fetchImpl },
-          );
-          signal.throwIfAborted();
-        }
+            summarize: ({ answer, results }) => {
+              if (!results.length) return answer;
+              progress('正在整理命令执行结果…');
+              return answerChat(
+                source,
+                {
+                  ...session,
+                  commandResults: results.map((run) => ({
+                    command: run.command,
+                    status: run.status,
+                    exitCode: run.exitCode,
+                    output: redact(run.output, [config.apiKey]),
+                    truncated: run.truncated,
+                    error: redact(run.error, [config.apiKey]),
+                  })),
+                },
+                config,
+                { signal, fetchImpl: this.fetchImpl },
+              );
+            },
+          },
+          { signal },
+        );
         const latest = this.db.session(id);
         latest.messages.push({
           id: newId(),
